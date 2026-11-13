@@ -1,0 +1,4 @@
+# 本 bundle 的界面在浏览器端（client.js）；宿主端不需要任何逻辑。
+- insert:
+    - id: preset-switcher
+      name: '@local/dsh-preset-switcher'

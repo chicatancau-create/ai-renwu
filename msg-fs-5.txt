@@ -1,0 +1,5 @@
+chore(evidence): P02/P04 证据空库重跑更新并入库 coverage
+
+2026-11-09 对重置后环境重跑：行数/性能数字随之变化（users 7→1、
+tasks 152→0、qps 575→1594）；manifest 按 sha256 引用 coverage 产物，
+故 coverage 一并入库。manifest unverified 出现空串条目，待生成器修正。

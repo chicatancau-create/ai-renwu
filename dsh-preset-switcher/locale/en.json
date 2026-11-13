@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Session Preset Switcher",
+    "description": "Switch the agent preset of a session that has already started."
+  }
+}

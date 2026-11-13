@@ -1,0 +1,13 @@
+chore: 初始化 AI 任务工作区脚本仓库（双平台私有备份）
+
+把 G:\AIrenwu 工作区根目录的散落脚本与小型工具目录纳入版本控制，
+避免日后找不到。白名单 .gitignore：只跟踪根脚本 + vslang-probe/
+preview-fixture/ dsh-preset-switcher/ gemini-pack(仅构建脚本)。
+
+排除：.memsearch 等隐私/应用状态、2026-* 历史任务目录（含密钥/venv/
+嵌套仓库）、DeskBox 备份、workbuddy-backup(206MB)、磁盘占用体检(80MB)、
+gemini-pack 三个大快照(派生数据，原仓库已双平台备份)、运行日志。
+
+双远端：origin=github.com/chicatancau-create/ai-renwu（私有）
+        gitcode=gitcode.com/zhoumoyukuai/ai-renwu（私有）
+提交身份：chicatancau@gmail.com（两平台均计入归属）。

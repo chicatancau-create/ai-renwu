@@ -1,0 +1,4 @@
+feat(uni-app): foodlist 列表页实现并引入 uni_modules 组件库
+
+foodlist 由占位页改为 uni-list 四道菜列表；wofule 无 package.json，
+uni_modules 是唯一组件来源，随库入库保证云端工程完整可构建。

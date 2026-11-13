@@ -1,0 +1,4 @@
+feat(Harmony): harmonyMall 工程入库
+
+含注册页 RegPage 与对话框练习页 DialogPage（重新暂存完整内容）、
+首页/购物车/我的/登录及测试页、资源与工程配置。

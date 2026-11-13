@@ -1,0 +1,7 @@
+编辑器高亮改为按实例缓存并补齐拆分修缮验收证据
+
+网页端：code-editor 换用 createCachedTokenizer（每实例缓存），新增
+cached-syntax-tokenizer 及五语言逐行等价测试、编辑器缓存用例。
+应用端：ui_main/ReviewPage 拆分修缮，native README 校准 Qt 构建入口，
+Phase41 sha256 同步；入库 20261112 修缮验收证据（含四套 qt-matrix
+截图与独立核验报告，日志按 .gitignore 排除）。
