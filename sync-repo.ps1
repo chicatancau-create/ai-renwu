@@ -29,12 +29,28 @@ git commit -F $MsgFile
 Write-Output ('commit rc=' + $LASTEXITCODE)
 git push gitcode main
 Write-Output ('push gitcode rc=' + $LASTEXITCODE)
+# origin (GitHub) egress fallback, added 2026-11-13 after a real failure:
+# the configured 7890 proxy ACCEPTED TCP (Test-NetConnection True, listener present
+# with a BLANK State column) yet every GitHub request through it died with
+# EOF / TLS 0A000126, while the DIRECT egress worked. Port open != line usable.
+# On failure, retry with a PER-COMMAND proxy override. This changes only the local
+# egress selection: the global git config is NOT touched and NO URL is substituted
+# (origin stays the real github.com address taken from git remote).
 git push origin main
-Write-Output ('push origin rc=' + $LASTEXITCODE)
+$prc = $LASTEXITCODE
+Write-Output ('push origin rc=' + $prc)
+if ($prc -ne 0) {
+  Write-Output '--- origin via configured egress failed; retry DIRECT (per-command override, global config untouched) ---'
+  git -c http.https://github.com.proxy= push origin main
+  Write-Output ('push origin direct rc=' + $LASTEXITCODE)
+}
 
 $local = (git rev-parse HEAD).Trim()
 $g = ((git ls-remote gitcode refs/heads/main) -split '\s+')[0]
+# Same fallback for verification: an unreadable remote must not be reported as a
+# mismatch (handbook rule: "cannot read" is not a negative conclusion).
 $o = ((git ls-remote origin refs/heads/main) -split '\s+')[0]
+if (-not $o) { $o = ((git -c http.https://github.com.proxy= ls-remote origin refs/heads/main) -split '\s+')[0] }
 Write-Output ('local   = ' + $local)
 Write-Output ('gitcode = ' + $g)
 Write-Output ('origin  = ' + $o)

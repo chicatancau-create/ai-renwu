@@ -1,0 +1,21 @@
+fix: sync-repo 内置出口回退；收录 GitHub 推送分层诊断脚本
+
+本轮双推时 origin 失败：TLS connect error 0A000126 / gh api EOF。但分层诊断显示
+7890 真实 TCP 握手 True、监听条目在（:: pid FlClashCore，State 列为空）、git 全局与
+系统代理都指 7890、FlClash 双进程在（期间重启过，PID 已变）。按手册判据「端口开着
+不等于线路能用，只认一次最小真实请求」——故障在代理上游节点，不在 git 配置
+（换 SSL 后端只会改报错文案）。
+
+直连判别：gh api user 直连 rc=0（chicatancau-create）、ls-remote origin 直连 rc=0
+→ 用 per-command 覆盖 git -c http.https://github.com.proxy= 完成 origin 推送。
+全程未替换任何地址：origin 仍是 git remote 里的真实 github.com 地址，gh 仍打
+api.github.com，7890 只是本机出口；全局配置回读仍为 http://127.0.0.1:7890。
+上一轮退役修复由此双推一致：local = gitcode = origin = 5f6bcbd。
+
+- sync-repo.ps1：origin 推送失败自动回退直连（per-command，不改全局配置、不换 URL）；
+  远端 HEAD 校验同样带回退，避免把「读不到」误报成不一致。
+- 新增 diag-github-push.ps1：分层诊断（真实握手 / 不加 State 过滤的监听条目 / 进程身份 /
+  git 与系统代理 / 最小真实请求 / ls-remote）；只用 ls-remote 纯 fetch，绝不 push --dry-run
+  （后者认证失败会 credential reject 删凭据）。
+- 新增 try-direct-github.ps1：直连判别 + 完成双推 + 双远端比对 + 全局配置回读。
+- README 索引同步。
