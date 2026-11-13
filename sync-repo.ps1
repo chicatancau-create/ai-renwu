@@ -41,17 +41,18 @@ $prc = $LASTEXITCODE
 Write-Output ('push origin rc=' + $prc)
 if ($prc -ne 0) {
   Write-Output '--- origin via configured egress failed; retry DIRECT (per-command override, global config untouched) ---'
-  git -c http.https://github.com.proxy= push origin main
+  # Clear session proxy env too: a stale HTTPS_PROXY can outlive the config override.
+  # lowSpeed* bounds a stalled push so it cannot hang for minutes.
+  $env:HTTP_PROXY = ''; $env:HTTPS_PROXY = ''; $env:ALL_PROXY = ''
+  git -c http.https://github.com.proxy= -c http.lowSpeedLimit=1000 -c http.lowSpeedTime=60 push origin main
   Write-Output ('push origin direct rc=' + $LASTEXITCODE)
 }
 
-$local = (git rev-parse HEAD).Trim()
-$g = ((git ls-remote gitcode refs/heads/main) -split '\s+')[0]
-# Same fallback for verification: an unreadable remote must not be reported as a
-# mismatch (handbook rule: "cannot read" is not a negative conclusion).
-$o = ((git ls-remote origin refs/heads/main) -split '\s+')[0]
-if (-not $o) { $o = ((git -c http.https://github.com.proxy= ls-remote origin refs/heads/main) -split '\s+')[0] }
-Write-Output ('local   = ' + $local)
-Write-Output ('gitcode = ' + $g)
-Write-Output ('origin  = ' + $o)
-if ($local -eq $g -and $local -eq $o) { Write-Output 'SYNC VERIFIED' } else { Write-Output 'SYNC MISMATCH' }
+# Verification is delegated to verify-remote-heads.ps1 (single source of truth):
+# bounded reads, 3 retries, direct-egress fallback, 40-hex SHA validation, an
+# api.github.com cross-check, and three distinct verdicts (VERIFIED / UNVERIFIED /
+# real MISMATCH) with exit codes 0 / 2 / 1. An unbounded or unreadable read must
+# never decide the verdict: on 2026-11-13 a 300s stall produced a FALSE mismatch
+# while both pushes had actually landed.
+& powershell -NoProfile -ExecutionPolicy Bypass -File 'G:\AIrenwu\verify-remote-heads.ps1'
+exit $LASTEXITCODE
