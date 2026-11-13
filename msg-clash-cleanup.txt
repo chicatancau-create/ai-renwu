@@ -1,0 +1,11 @@
+chore: clash 残留目录查清后删除——清理脚本入库与退役文案更新
+
+- 新增 clash-cleanup-precheck / clash-cleanup-worker / run-clash-cleanup：
+  六项引用排查（服务 PathName/进程路径/verge·mihomo 进程/计划任务/Run 键/FlClash 身份）
+  → UAC 提权完整枚举（30 文件/9 目录/197MB，含两个 61MB 内核）→ 逐文件删除
+  → ItemNotFoundException 判别复核；FlClash 与 7890 真实 TCP 握手删除前后均 True
+- fix-admin-items.cmd 退役「0 文件就删」危险逻辑（SilentlyContinue 吞 ACL 拒绝的同款坑），
+  改为仅报告存在性；由 make-admin-cmd-v2.ps1 重生成（ASCII+CRLF）
+- README 索引补新脚本；端口健康检查改用真实 TCP 测试
+  （双栈监听 State 列为空，任何 State 过滤都漏——手册已有记录再确认）
+- 证据日志 clash-cleanup-result.log 按 *.log 规则留本地，结论已沉淀手册

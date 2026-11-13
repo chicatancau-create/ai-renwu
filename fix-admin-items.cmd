@@ -1,7 +1,8 @@
 @echo off
 setlocal
 REM One-click admin fix. Radmin InterfaceMetric already applied 2026-11-13 (idempotent re-check).
-REM Clash residual dir is NOT empty (30 files, admin-verified) - auto-delete only if 0 files.
+REM Clash residual dir DELETED 2026-11-13 after full enumeration + reference checks (30 files, 197MB).
+REM Section 2 is existence-report only; the old auto-delete-on-zero-count logic is retired (ACL pitfall).
 REM Double-click and accept the UAC prompt. Reversible; does NOT disable any adapter.
 fltmc >nul 2>&1
 if %errorlevel%==0 goto :admin
@@ -17,7 +18,7 @@ exit /b 0
 :admin
 echo === 1. Set Radmin InterfaceMetric to 5000 ===
 powershell -NoProfile -Command "$ra = Get-NetIPInterface -AddressFamily IPv4 | Where-Object { $_.InterfaceAlias -like '*Radmin*' }; if ($ra) { Set-NetIPInterface -InterfaceIndex $ra.InterfaceIndex -InterfaceMetric 5000; Get-NetIPInterface -AddressFamily IPv4 | Where-Object { $_.InterfaceAlias -like '*Radmin*' } | Select-Object InterfaceIndex,InterfaceMetric | Format-Table | Out-String | Write-Host; $f = Find-NetRoute -RemoteIPAddress 8.8.8.8 -ErrorAction SilentlyContinue; if ($f) { Write-Host ('egress: ' + $f[0].IPAddress + ' ifIndex=' + $f[0].InterfaceIndex) } } else { Write-Host 'Radmin interface not found' }"
-echo === 2. Clash residual check (NOT empty: 30 files; auto-delete only if 0 files) ===
-powershell -NoProfile -Command "$p='C:\ProgramData\clash-verge-service'; if (Test-Path $p) { $f=@(Get-ChildItem $p -Recurse -Force -File -ErrorAction SilentlyContinue); if ($f.Count -eq 0) { Remove-Item $p -Recurse -Force; Write-Host ('removed, exists=' + (Test-Path $p)) } else { Write-Host 'SKIP: dir not empty' } } else { Write-Host 'already gone' }"
+echo === 2. Clash residual dir (deleted 2026-11-13; existence report only, NO auto-delete) ===
+powershell -NoProfile -Command "$p='C:\ProgramData\clash-verge-service'; if (Test-Path $p) { Write-Host 'NOTE: dir exists again (reinstall?) - inspect manually; do NOT auto-delete' } else { Write-Host 'not present (expected: deleted 2026-11-13, admin-verified)' }"
 echo === DONE ===
 pause

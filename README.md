@@ -62,7 +62,10 @@ G:\AIrenwu（AI 任务工作区）根目录散落脚本与小型工具目录的�
 ### 机器修复 / 依赖 / 手册记录移动
 `fix-machine.ps1`、`install-flask.ps1`、`move-sandbox.ps1`、`move-vslang.ps1`、
 `admin-fix-worker.ps1` + `run-admin-fix.ps1` + `fix-admin-items.cmd` + `make-admin-cmd.ps1`（Radmin metric 提权修复）、
-`clash-inspect.ps1`、`set-unzip-open-default.cmd`
+`clash-inspect.ps1`、`set-unzip-open-default.cmd`、
+`clash-cleanup-precheck.ps1` + `clash-cleanup-worker.ps1` + `run-clash-cleanup.ps1`（clash 残留目录：六项引用预检→提权完整枚举→逐文件删除→ItemNotFoundException 判别复核）、
+`make-admin-cmd-v2.ps1`（重生成退役版 fix-admin-items.cmd，去掉「0 文件就删」危险逻辑）、
+`sync-repo-clash.ps1` + `msg-clash-cleanup.txt`（本轮增量提交与双推）
 
 ### 实验 / 预览测试
 `vslang-probe.ps1` + `vslang-probe/`（VSLANG A/B 实验夹具与日志）、
