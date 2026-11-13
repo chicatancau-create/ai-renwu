@@ -1,0 +1,21 @@
+fix: 退役三处不安全自动删除逻辑，修正两处误判判据
+
+上一轮只退役了 .cmd 里的「递归计数==0 就删」，但真正提权执行的脚本与 v1 生成器仍留着它：
+
+- admin-fix-worker.ps1：提权 worker 改为仅报告存在性。原逻辑用 -ErrorAction
+  SilentlyContinue 计数，ACL 拒绝被吞成 0，会删掉根本读不了的目录（手册
+  「无权限读ProgramData被当成文件不存在致误删服务拆掉内核」同款坑）。
+- fix-machine.ps1：C 段同样改为仅报告；原 *clash* 服务/进程护栏还会误匹配现役 FlClash。
+- make-admin-cmd.ps1（v1 生成器）：加 exit 0 护栏永久停用，防止覆盖 v2 生成的安全
+  .cmd 把危险逻辑写回来；旧生成体保留在 exit 之后仅作历史。
+- clash-inspect.ps1：进程/服务改用 *verge*/*mihomo* 精确名，FlClash 单独列出，
+  不再把现役代理报成「clash processes: 2」；枚举全部加 Test-Path 护栏——实测发现
+  Get-ChildItem <不存在的叶子> -Recurse 会把叶子当过滤器转而遍历父目录
+  （本次跑去遍历 C:\ProgramData 并报 Application Data  junction 拒绝），
+  这种「别的树的计数/拒绝」绝不能喂给删除决策。
+- audit-probe7.ps1：残留目录枚举改 -ErrorAction Stop，拒绝访问明确报「读不了」，
+  不再静默输出 0 被当成空壳（这正是当初误判的源头）。
+- verify-github.ps1：死端口 7897→7890；jq 参数去内嵌双引号（PS5.1 会拆参报
+  accepts 1 arg(s), received 2）；探活显式 -X GET。7890 仅本机出口，gh 仍打 api.github.com。
+- 新增 verify-optimizations.ps1：解析检查 + 无活删除断言 + v1 惰性行为验证（.cmd 哈希前后一致）。
+- 新增 sync-repo.ps1：通用增量提交与双推（可传 -MsgFile），沿用隐私/体积护栏与双远端比对。

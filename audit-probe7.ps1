@@ -33,10 +33,18 @@ if ($c3306) { $c3306 | Select-Object -First 3 | ForEach-Object { Write-Output ('
 
 Write-Output '=== 5. clash-verge-service residual ==='
 $cv = 'C:\ProgramData\clash-verge-service'
+# 2026-11-13 FIX: this enumeration is where the false "0 files / empty shell" came
+# from. -ErrorAction SilentlyContinue swallowed the ACL denial and printed NOTHING,
+# which was then read as "empty". Use -ErrorAction Stop and state the denial: a
+# non-admin zero means UNREADABLE, never "empty" or "not there".
 if (Test-Path $cv) {
-  Get-ChildItem $cv -Recurse -File -ErrorAction SilentlyContinue | ForEach-Object { Write-Output ($_.FullName + ' | ' + $_.Length + 'B') }
-  $svc = Get-Service | Where-Object { $_.Name -like '*clash*' }
-  if ($svc) { $svc | ForEach-Object { Write-Output ('clash service: ' + $_.Name + ' ' + $_.Status) } } else { Write-Output 'clash services: NONE' }
+  try {
+    $cf = @(Get-ChildItem $cv -Recurse -File -Force -ErrorAction Stop)
+    Write-Output ('filecount (authoritative): ' + $cf.Count)
+    $cf | ForEach-Object { Write-Output ($_.FullName + ' | ' + $_.Length + 'B') }
+  } catch { Write-Output ('ENUM DENIED/FAILED - conclusion is UNREADABLE, NOT empty: ' + $_.Exception.Message) }
+  $svc = Get-Service | Where-Object { $_.Name -like '*verge*' -or $_.Name -like '*mihomo*' }
+  if ($svc) { $svc | ForEach-Object { Write-Output ('verge/mihomo service: ' + $_.Name + ' ' + $_.Status) } } else { Write-Output 'verge/mihomo services: NONE' }
   $procs = Get-Process | Where-Object { $_.Path -like '*clash-verge*' }
   if ($procs) { $procs | ForEach-Object { Write-Output ('clash-verge proc: ' + $_.Id) } } else { Write-Output 'clash-verge processes: NONE' }
 } else { Write-Output 'dir gone' }

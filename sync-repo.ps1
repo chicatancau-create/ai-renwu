@@ -1,0 +1,41 @@
+# sync-repo.ps1 - generic incremental commit + dual-push for G:\AIrenwu, with guardrails.
+# Guardrails: nothing staged -> abort; private/runtime paths staged -> abort; >5MB -> abort.
+# Remotes are taken from the repo's real git config (gitcode direct, origin via the
+# machine's 7890 egress from git global http.https://github.com.proxy). No URL rewriting.
+# ASCII-only. Run:
+#   powershell -NoProfile -ExecutionPolicy Bypass -File G:\AIrenwu\sync-repo.ps1 -MsgFile G:\AIrenwu\msg-xxx.txt
+param([string]$MsgFile = 'G:\AIrenwu\msg-repo-update.txt')
+$ErrorActionPreference = 'Continue'
+Set-Location 'G:\AIrenwu'
+if (-not (Test-Path -LiteralPath $MsgFile)) { Write-Output ('ABORT: msg file missing: ' + $MsgFile); exit 1 }
+
+git add -A
+$staged = @(git diff --cached --name-only)
+if ($staged.Count -eq 0) { Write-Output 'ABORT: nothing staged'; exit 1 }
+Write-Output ('staged: ' + $staged.Count + ' files')
+
+$forbidden = '^\.memsearch|^\.workbuddy|^\.agent-teams|^2026-|\.log$'
+$sum = 0
+foreach ($f in $staged) {
+  if ($f -match $forbidden) { Write-Output ('ABORT: forbidden path staged: ' + $f); exit 1 }
+  $it = Get-Item -LiteralPath (Join-Path 'G:\AIrenwu' $f) -ErrorAction SilentlyContinue
+  if ($it) { $sum += $it.Length }
+  Write-Output ('  ' + $f)
+}
+Write-Output ('staged bytes: ' + $sum)
+if ($sum -gt 5242880) { Write-Output 'ABORT: staged size > 5MB'; exit 1 }
+
+git commit -F $MsgFile
+Write-Output ('commit rc=' + $LASTEXITCODE)
+git push gitcode main
+Write-Output ('push gitcode rc=' + $LASTEXITCODE)
+git push origin main
+Write-Output ('push origin rc=' + $LASTEXITCODE)
+
+$local = (git rev-parse HEAD).Trim()
+$g = ((git ls-remote gitcode refs/heads/main) -split '\s+')[0]
+$o = ((git ls-remote origin refs/heads/main) -split '\s+')[0]
+Write-Output ('local   = ' + $local)
+Write-Output ('gitcode = ' + $g)
+Write-Output ('origin  = ' + $o)
+if ($local -eq $g -and $local -eq $o) { Write-Output 'SYNC VERIFIED' } else { Write-Output 'SYNC MISMATCH' }

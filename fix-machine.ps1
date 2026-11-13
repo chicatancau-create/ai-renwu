@@ -22,19 +22,16 @@ try {
   if ($fnr) { Write-Output ('egress check: localIP=' + $fnr[0].IPAddress + ' ifIndex=' + $fnr[0].InterfaceIndex) }
 } catch { Write-Output ('Radmin metric change FAILED: ' + $_.Exception.Message) }
 
-Write-Output '=== C. clash-verge-service residual cleanup ==='
+# RETIRED 2026-11-13: section C no longer deletes anything.
+# Old logic: file count from -ErrorAction SilentlyContinue (swallows ACL denials ->
+# false 0) + no *clash* service + no *clash-verge* process -> Remove-Item -Recurse.
+# Both guards were unsound: the count could be a permission artifact, and *clash*
+# also matches the CURRENT proxy FlClash. The residual dir was already enumerated
+# under admin (30 files / 9 dirs / ~197MB) and deleted per-file by
+# clash-cleanup-worker.ps1 after reference checks. Report only from now on.
+Write-Output '=== C. clash-verge-service residual (REPORT ONLY, no delete) ==='
 $cv = 'C:\ProgramData\clash-verge-service'
 if (Test-Path $cv) {
-  $items = @(Get-ChildItem $cv -Recurse -Force -ErrorAction SilentlyContinue)
-  $files = @($items | Where-Object { -not $_.PSIsContainer })
-  Write-Output ('total items=' + $items.Count + ' files=' + $files.Count)
-  $svc = Get-Service | Where-Object { $_.Name -like '*clash*' }
-  $procs = Get-Process | Where-Object { $_.Path -like '*clash-verge*' }
-  if ($files.Count -eq 0 -and -not $svc -and -not $procs) {
-    try {
-      Remove-Item $cv -Recurse -Force -ErrorAction Stop
-      Write-Output ('removed; still exists=' + (Test-Path $cv))
-    } catch { Write-Output ('removal FAILED: ' + $_.Exception.Message) }
-  } else { Write-Output 'SKIP removal: not confirmed empty/orphaned' }
-} else { Write-Output 'dir already gone' }
+  Write-Output 'NOTE: dir exists again (reinstall?) - inspect with clash-inspect.ps1; do NOT auto-delete'
+} else { Write-Output 'not present (expected: deleted 2026-11-13, admin-verified)' }
 Write-Output '=== DONE ==='

@@ -1,3 +1,13 @@
+# RETIRED 2026-11-13 - DO NOT RUN. This v1 generator emitted the dangerous
+# "recursive file count == 0 -> Remove-Item -Recurse -Force" logic, where the count
+# came from -ErrorAction SilentlyContinue (swallows ACL denials -> false 0 -> would
+# delete an unreadable directory). Running it would OVERWRITE the safe
+# fix-admin-items.cmd produced by make-admin-cmd-v2.ps1 and reintroduce that logic.
+# Kept below for history only; the guard makes it inert.
+Write-Output 'RETIRED: make-admin-cmd.ps1 (v1) is disabled - it would regenerate the unsafe auto-delete .cmd.'
+Write-Output 'Use instead: powershell -NoProfile -ExecutionPolicy Bypass -File G:\AIrenwu\make-admin-cmd-v2.ps1'
+exit 0
+
 $ErrorActionPreference = 'Stop'
 $lines = @(
 '@echo off',
