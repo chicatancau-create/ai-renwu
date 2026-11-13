@@ -1,0 +1,10 @@
+docs: README 收录三态校验脚本；sync-repo 头注释补出口回退与校验委托
+
+- README 索引补 verify-remote-heads.ps1 与 msg-verify-verdict.txt，并写明三态判定
+  （VERIFIED / UNVERIFIED / 真 MISMATCH）与退出码 0/2/1，避免后来者再把「读不到」
+  当成不一致。
+- sync-repo.ps1 头注释补齐实际行为：origin 出口失败自动直连回退（per-command，
+  不改全局配置、不替换地址），校验委托 verify-remote-heads.ps1。
+
+本轮最终状态：local = gitcode = origin = 7c1a39da5cdf676c2fd4a786f08c65cf603e967e，
+git 传输层双远端一致，api.github.com 交叉核对同 sha（SYNC VERIFIED）。

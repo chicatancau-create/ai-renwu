@@ -2,6 +2,9 @@
 # Guardrails: nothing staged -> abort; private/runtime paths staged -> abort; >5MB -> abort.
 # Remotes are taken from the repo's real git config (gitcode direct, origin via the
 # machine's 7890 egress from git global http.https://github.com.proxy). No URL rewriting.
+# If that egress fails, origin is retried DIRECT via a per-command override (local egress
+# selection only - global config untouched, no address substituted). Verification is
+# delegated to verify-remote-heads.ps1 (bounded/retried reads, three-state verdict).
 # ASCII-only. Run:
 #   powershell -NoProfile -ExecutionPolicy Bypass -File G:\AIrenwu\sync-repo.ps1 -MsgFile G:\AIrenwu\msg-xxx.txt
 param([string]$MsgFile = 'G:\AIrenwu\msg-repo-update.txt')
