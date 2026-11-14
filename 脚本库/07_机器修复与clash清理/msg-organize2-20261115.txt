@@ -1,0 +1,11 @@
+organize: 根目录文件夹归入六类大纲（第二轮归类）
+
+- 51 个根文件夹归类：01_任务归档(39 日期任务夹) / 02_项目代码(5 项目) /
+  03_备份(5 备份) / 04_磁盘与系统(2) / 05_取证扫描(_scan+探针散件)；脚本库不动
+- 156 文件 235 处旧路径引用 patch（脚本/文档/手册/profile link:），
+  历史证据快照(02_证据日志/备份/盘点/tmp)排除不改写
+- 活体恢复：WindowCenter 计划任务改指新路径并重启(UAC)；
+  dsh-preset-switcher node_modules 链接重建为 Junction→02_项目代码/
+- .gitignore 白名单改放行 02_项目代码/ 四工具目录；README 增根目录大纲长期规矩
+- 规矩持久化：.workbuddy-ai/memory/MEMORY.md + E:\本地AI使用手册\规则-工作区大纲与归类铁律.md
+- 验证：verify-optimizations TOTAL FAILURES: 0；守恒校验根可见夹=6 类

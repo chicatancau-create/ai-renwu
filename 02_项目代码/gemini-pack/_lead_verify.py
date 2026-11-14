@@ -1,9 +1,9 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """Lead 验收：定点存在性检查 + 抽样 frontmatter + 报告尺寸。只读，不递归大目录。"""
 import os, sys
 sys.stdout.reconfigure(encoding='utf-8')
 LIB = r'E:\OBsidian\全栈工程师学习资料库'
-PACK = r'G:\AIrenwu\gemini-pack'
+PACK = r'G:\AIrenwu\02_项目代码\gemini-pack'
 
 checks = [
     'CodeWeave', 'CodeWeave/content-manifest.json', 'CodeWeave/同步报告/同步记录.json',

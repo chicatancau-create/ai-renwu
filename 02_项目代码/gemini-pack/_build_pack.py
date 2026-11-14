@@ -1,9 +1,9 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """整合：_header.md + 01 报告 + 02 报告 → 00-上传Gemini-双仓数据包.md。
 校验两份报告字节级完整嵌入。只读源报告，只写 00 产物。"""
 import os, sys
 sys.stdout.reconfigure(encoding='utf-8')
-PACK = r'G:\AIrenwu\gemini-pack'
+PACK = r'G:\AIrenwu\02_项目代码\gemini-pack'
 
 def rd(name):
     with open(os.path.join(PACK, name), 'r', encoding='utf-8') as f:

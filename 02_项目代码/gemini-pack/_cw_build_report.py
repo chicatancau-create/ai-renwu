@@ -1,11 +1,11 @@
-# -*- coding: utf-8 -*-
-# 只读组装 G:\AIrenwu\gemini-pack\01-CodeWeave-快照.md
+﻿# -*- coding: utf-8 -*-
+# 只读组装 G:\AIrenwu\02_项目代码\gemini-pack\01-CodeWeave-快照.md
 # 所有嵌入内容均从 G:\CodeWeave 磁盘真实读取；本脚本不写入 CodeWeave 任何文件。
 import os, sys
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 
 ROOT = r"G:\CodeWeave"
-OUT = r"G:\AIrenwu\gemini-pack\01-CodeWeave-快照.md"
+OUT = r"G:\AIrenwu\02_项目代码\gemini-pack\01-CodeWeave-快照.md"
 BUDGET = 69500  # 字节，任务上限 70KB，留余量
 
 EXCLUDE = {"node_modules", ".git", "dist", "build", "out", ".next", "coverage", "__pycache__", ".venv", ".gradle"}

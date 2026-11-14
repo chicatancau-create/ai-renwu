@@ -1,6 +1,6 @@
 ﻿$ErrorActionPreference = 'Continue'
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-$fix = 'G:\AIrenwu\preview-fixture'
+$fix = 'G:\AIrenwu\02_项目代码\preview-fixture'
 $svgDir = Join-Path $fix 'svg_output'
 New-Item -ItemType Directory -Force -Path $svgDir | Out-Null
 $svg = '<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720"><rect width="1280" height="720" fill="#ffffff"/><text x="100" y="100" font-size="48">preview fixture</text></svg>'

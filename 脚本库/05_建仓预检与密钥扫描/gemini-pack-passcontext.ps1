@@ -1,6 +1,6 @@
-# gemini-pack-passcontext.ps1 - ASCII only. Print password-hit lines with values MASKED.
+﻿# gemini-pack-passcontext.ps1 - ASCII only. Print password-hit lines with values MASKED.
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-$dir = 'G:\AIrenwu\gemini-pack'
+$dir = 'G:\AIrenwu\02_项目代码\gemini-pack'
 $files = @(Get-ChildItem $dir -Recurse -File -Force -Filter *.md)
 foreach ($f in $files) {
     $lines = @(Get-Content $f.FullName -Encoding UTF8 -ErrorAction SilentlyContinue)

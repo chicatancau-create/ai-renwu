@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Continue'
+﻿$ErrorActionPreference = 'Continue'
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $msvcRoot = 'C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Tools\MSVC'
 Get-ChildItem $msvcRoot -Directory | ForEach-Object {
@@ -14,7 +14,7 @@ Get-ChildItem $msvcRoot -Directory | ForEach-Object {
     if (Test-Path $cl) { Write-Output ('  cl.exe version=' + (Get-Item $cl).VersionInfo.FileVersion) }
   }
 }
-$log = 'G:\AIrenwu\vslang-probe\logA.txt'
+$log = 'G:\AIrenwu\02_项目代码\vslang-probe\logA.txt'
 if (Test-Path $log) {
   $bytes = [System.IO.File]::ReadAllBytes($log)
   $utf8 = [System.Text.Encoding]::UTF8.GetString($bytes)

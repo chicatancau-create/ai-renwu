@@ -1,6 +1,6 @@
-# gemini-pack-classify.ps1 - ASCII only. Masked classification of secret hits. NO raw values printed.
+﻿# gemini-pack-classify.ps1 - ASCII only. Masked classification of secret hits. NO raw values printed.
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-$dir = 'G:\AIrenwu\gemini-pack'
+$dir = 'G:\AIrenwu\02_项目代码\gemini-pack'
 $files = @(Get-ChildItem $dir -Recurse -File -Force)
 foreach ($f in $files) {
     $lines = @(Get-Content $f.FullName -ErrorAction SilentlyContinue)

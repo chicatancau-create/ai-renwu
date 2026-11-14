@@ -1,8 +1,8 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """审计 02-资料库-快照.md 各节字节数，指导体积裁剪（只读）。"""
 import sys, re
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
-p = r"G:\AIrenwu\gemini-pack\02-资料库-快照.md"
+p = r"G:\AIrenwu\02_项目代码\gemini-pack\02-资料库-快照.md"
 t = open(p, encoding="utf-8").read()
 b = lambda s: len(s.encode("utf-8"))
 print("TOTAL bytes:", b(t), " lines:", len(t.splitlines()))

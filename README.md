@@ -6,25 +6,38 @@ G:\AIrenwu（AI 任务工作区）的版本化备份，**双平台私有仓库**
 - GitCode：`https://gitcode.com/zhoumoyukuai/ai-renwu`（私有，remote 名 `gitcode`）
 - 提交身份：`chicatancau@gmail.com`（两平台均计入贡献归属）
 
-## 根目录规矩（2026-11-15 归类后）
+## 根目录大纲（2026-11-15 第二轮归类后，长期规矩）
 
-**根目录只允许文件夹 + 本 README + .gitignore，不散放任何文件。**
+**根目录只允许下列 6 类文件夹 + 本 README + .gitignore，不散放任何文件、任何新文件夹。**
 
-- 脚本与提交信息一律入 `脚本库/<分类>/`（见下方索引），新脚本按用途放进对应分类，没有合适分类就新建分类文件夹。
-- 任务产物按 `YYYY-MM-DD_任务名/` 建文件夹，内部标准分层 `01_报告 / 02_证据日志 / 03_工具脚本 / 04_产物`。
-- 脚本内部引用同目录文件用 `$PSScriptRoot`，不写死根目录绝对路径（再搬家不用改代码）。
+| 目录 | 放什么 |
+|---|---|
+| `01_任务归档/` | 所有 `YYYY-MM-DD_任务名/` 任务文件夹（含历史任务），内部标准分层 `01_报告 / 02_证据日志 / 03_工具脚本 / 04_产物` |
+| `02_项目代码/` | 长期维护的项目：`dsh-preset-switcher/` `gemini-pack/` `vslang-probe/` `preview-fixture/` `KaihongOS/` |
+| `03_备份/` | 原件备份：`DeskBox-原件备份-*` `workbuddy-backup/` `_backup/` `_已废弃脚本归档_20261115/` |
+| `04_磁盘与系统/` | `磁盘整理/` `磁盘占用体检/` 等磁盘/系统级盘点 |
+| `05_取证扫描/` | `_scan/` 与并行会话的取证/探针散件 |
+| `脚本库/` | 可复用脚本与提交信息，按用途 8 分类（见下方索引） |
+
+**以后创建任务/人物后的一切产出**：先建 `01_任务归档/YYYY-MM-DD_任务名/`，所有东西按标准分层放进对应子目录，
+禁止散落到根目录、桌面、下载目录。可复用脚本沉淀进 `脚本库/<分类>/`。没有合适分类就新建分类文件夹，不许放外面。
+
+**移不动的东西**（用户 2026-11-15 授权）：先停掉占用进程 → 移动/删除 → 恢复进程（计划任务改路径后重启、
+链接重建、应用重启）。历史证据快照（`02_证据日志/`、备份、盘点清单）不改写、不搬运内部内容。
+
+脚本内部引用同目录文件用 `$PSScriptRoot`，不写死根目录绝对路径（再搬家不用改代码）。
 
 ## 仓库设计：白名单 .gitignore
 
-工作区里有 50 余个子目录（历史任务、隐私记忆、应用状态、大备份、含密钥/venv/嵌套仓库的项目），
+工作区里有大量子目录（历史任务、隐私记忆、应用状态、大备份、含密钥/venv/嵌套仓库的项目），
 **不能整目录全推**。所以 `.gitignore` 用白名单：默认忽略根目录一切，只显式放行
-`脚本库/` + 下列工具目录。新增任务目录/隐私目录默认不入库；根目录散脚本也不再放行（逼着归类）。
+`脚本库/` + `02_项目代码/` 下四个工具目录。新增任务目录/隐私目录默认不入库；根目录散脚本也不再放行（逼着归类）。
 
-**纳入的工具目录**：`vslang-probe/`、`preview-fixture/`、`dsh-preset-switcher/`、
-`gemini-pack/`（仅构建脚本，排除三个大快照 .md）。
+**纳入的工具目录**：`02_项目代码/vslang-probe/`、`02_项目代码/preview-fixture/`、
+`02_项目代码/dsh-preset-switcher/`、`02_项目代码/gemini-pack/`（仅构建脚本，排除三个大快照 .md）。
 
-**排除**：`.memsearch/` `.workbuddy*/` `.agent-teams/`（隐私/应用状态）、`2026-*/`（历史任务）、
-`DeskBox-*/` `workbuddy-backup/`(206MB) `磁盘占用体检/`(80MB)、`gemini-pack/0[012]-*.md`（派生快照）、
+**排除**：`.memsearch/` `.workbuddy*/` `.agent-teams/`（隐私/应用状态）、`01_任务归档/`（历史任务）、
+`03_备份/`、`02_项目代码/KaihongOS/`、`02_项目代码/gemini-pack/0[012]-*.md`（派生快照）、
 `*.log`（运行日志，结论已沉淀进 E:\本地AI使用手册）。
 
 ## 脚本索引（按用途，均在 `脚本库/` 下）
@@ -82,11 +95,11 @@ G:\AIrenwu（AI 任务工作区）的版本化备份，**双平台私有仓库**
 `msg-final-index.txt`（索引补齐的提交信息）、`msg-egress-fallback.txt`（出口回退轮提交信息）
 
 ### 08_实验与预览 — 实验 / 预览测试
-`vslang-probe.ps1` + `vslang-probe/`（VSLANG A/B 实验夹具与日志）、
-`preview-test.ps1` / `preview-fixture-test.ps1` + `preview-fixture/`（flask 预览最小夹具）
+`vslang-probe.ps1` + `02_项目代码/vslang-probe/`（VSLANG A/B 实验夹具与日志）、
+`preview-test.ps1` / `preview-fixture-test.ps1` + `02_项目代码/preview-fixture/`（flask 预览最小夹具）
 
-### 工具项目目录（根目录文件夹，不在脚本库内）
-- `dsh-preset-switcher/`：DSH 预设切换器插件（client.js / index.js / 测试）
+### 工具项目目录（在 `02_项目代码/` 下）
+- `dsh-preset-switcher/`：DSH 预设切换器插件（client.js / index.js / 测试；.dsh profile 以 link: 引用，node_modules 内为 Junction）
 - `gemini-pack/`：Gemini 双仓数据包构建脚本（`_build_pack.py` 等；快照 .md 不入库）
 
 ## 日常用法

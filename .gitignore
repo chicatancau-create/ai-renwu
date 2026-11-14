@@ -14,18 +14,20 @@
 # 放行脚本库（2026-11-15 归类：根目录不再散放脚本，全部按分类入 脚本库/）
 !/脚本库/
 
-# 放行本次会话的工具 / 证据目录
-!/vslang-probe/
-!/preview-fixture/
+# 放行项目代码类（2026-11-15 第二轮归类：项目夹统一入 02_项目代码/）
+!/02_项目代码/
+/02_项目代码/*
+!/02_项目代码/vslang-probe/
+!/02_项目代码/preview-fixture/
 
 # 放行用户自制工具项目（已密钥扫描，干净）
-!/dsh-preset-switcher/
+!/02_项目代码/dsh-preset-switcher/
 
 # gemini-pack：放行目录，但排除三个大快照（派生数据，原仓库已双平台备份）
-!/gemini-pack/
-/gemini-pack/00-*.md
-/gemini-pack/01-*.md
-/gemini-pack/02-*.md
+!/02_项目代码/gemini-pack/
+/02_项目代码/gemini-pack/00-*.md
+/02_项目代码/gemini-pack/01-*.md
+/02_项目代码/gemini-pack/02-*.md
 
 # 显式排除隐私 / 应用状态（双保险）
 .memsearch/

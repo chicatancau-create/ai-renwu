@@ -1,6 +1,6 @@
-$ErrorActionPreference = 'Continue'
+﻿$ErrorActionPreference = 'Continue'
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
-$work = 'G:\AIrenwu\vslang-probe'
+$work = 'G:\AIrenwu\02_项目代码\vslang-probe'
 New-Item -ItemType Directory -Force -Path $work | Out-Null
 $vcvars = 'C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\VC\Auxiliary\Build\vcvars64.bat'
 $cppPath = Join-Path $work 'bad.cpp'

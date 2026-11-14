@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+﻿# -*- coding: utf-8 -*-
 """生成 02-资料库-快照.md。数据来源: _lib_scan.collect() (只读)。
 评论文字由扫描员基于真实读到的内容撰写; 文档宣称一律标注「宣称/未确认」。
 体积护栏: <=80KB, 超限按 trim 级别砍 6/8 节样本, 保 1/2/3/4/5/7。
@@ -10,7 +10,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import _lib_scan as S
 
 ROOT = S.ROOT
-OUT = r"G:\AIrenwu\gemini-pack\02-资料库-快照.md"
+OUT = r"G:\AIrenwu\02_项目代码\gemini-pack\02-资料库-快照.md"
 LIMIT = 80_000  # 任务「≤80KB」按更严格的 80,000 字节口径执行
 SEP = os.sep
 
