@@ -1,17 +1,24 @@
 # AIrenwu 脚本仓库
 
-G:\AIrenwu（AI 任务工作区）根目录散落脚本与小型工具目录的版本化备份，
-**双平台私有仓库**，免得日后找不到。
+G:\AIrenwu（AI 任务工作区）的版本化备份，**双平台私有仓库**，免得日后找不到。
 
 - GitHub：`https://github.com/chicatancau-create/ai-renwu`（私有，remote 名 `origin`）
 - GitCode：`https://gitcode.com/zhoumoyukuai/ai-renwu`（私有，remote 名 `gitcode`）
 - 提交身份：`chicatancau@gmail.com`（两平台均计入贡献归属）
 
+## 根目录规矩（2026-11-15 归类后）
+
+**根目录只允许文件夹 + 本 README + .gitignore，不散放任何文件。**
+
+- 脚本与提交信息一律入 `脚本库/<分类>/`（见下方索引），新脚本按用途放进对应分类，没有合适分类就新建分类文件夹。
+- 任务产物按 `YYYY-MM-DD_任务名/` 建文件夹，内部标准分层 `01_报告 / 02_证据日志 / 03_工具脚本 / 04_产物`。
+- 脚本内部引用同目录文件用 `$PSScriptRoot`，不写死根目录绝对路径（再搬家不用改代码）。
+
 ## 仓库设计：白名单 .gitignore
 
-工作区里有 44 个子目录（历史任务、隐私记忆、应用状态、大备份、含密钥/venv/嵌套仓库的项目），
+工作区里有 50 余个子目录（历史任务、隐私记忆、应用状态、大备份、含密钥/venv/嵌套仓库的项目），
 **不能整目录全推**。所以 `.gitignore` 用白名单：默认忽略根目录一切，只显式放行
-根脚本（`*.ps1 *.py *.cmd *.bat *.txt`）+ 下列工具目录。新增任务目录/隐私目录默认不入库。
+`脚本库/` + 下列工具目录。新增任务目录/隐私目录默认不入库；根目录散脚本也不再放行（逼着归类）。
 
 **纳入的工具目录**：`vslang-probe/`、`preview-fixture/`、`dsh-preset-switcher/`、
 `gemini-pack/`（仅构建脚本，排除三个大快照 .md）。
@@ -20,9 +27,9 @@ G:\AIrenwu（AI 任务工作区）根目录散落脚本与小型工具目录的�
 `DeskBox-*/` `workbuddy-backup/`(206MB) `磁盘占用体检/`(80MB)、`gemini-pack/0[012]-*.md`（派生快照）、
 `*.log`（运行日志，结论已沉淀进 E:\本地AI使用手册）。
 
-## 脚本索引（按用途）
+## 脚本索引（按用途，均在 `脚本库/` 下）
 
-### Git 账号检查 / 验证 / 邮箱修复
+### 01_git账号验证 — Git 账号检查 / 验证 / 邮箱修复
 | 脚本 | 作用 |
 |---|---|
 | `git-accounts-check.ps1` | 盘点本机两个 git 账号（config/ssh/cmdkey/gh/GCM） |
@@ -35,7 +42,7 @@ G:\AIrenwu（AI 任务工作区）根目录散落脚本与小型工具目录的�
 | `fix-commit-email.ps1` | 改全局提交邮箱为 chicatancau@gmail.com |
 | `verify-attribution.ps1` / `verify-cw-attribution.ps1` | 验证提交归属（author.login） |
 
-### 三仓库提交 / 推送
+### 02_提交推送 — 三仓库提交 / 推送
 | 脚本 | 作用 |
 |---|---|
 | `precheck-commit.ps1` | 提交前预检（远端/进程/并行会话） |
@@ -45,21 +52,21 @@ G:\AIrenwu（AI 任务工作区）根目录散落脚本与小型工具目录的�
 | `push-cw-chunked.ps1` | CodeWeave 67 提交分块推送（大包被重置的解法） |
 | `msg-cw.txt` / `msg-fs-1..5.txt` | 对应提交信息 |
 
-### 工作区扫描
+### 03_工作区扫描
 `scan-other-issues.ps1`、`scan-sync-lfs.ps1`、`scan-workspace.ps1` / `scan-workspace2.ps1` / `scan-workspace3.ps1`
 
-### 规则审计（机器快照）
+### 04_规则审计（机器快照）
 `audit-snapshot.ps1`、`audit-probe2.ps1` … `audit-probe8.ps1`
 
-### 本仓库建仓预检 / 密钥扫描
+### 05_建仓预检与密钥扫描
 `repo-precheck.ps1`（目录盘点+根部密钥扫描）、`repo-precheck-dirs.ps1`（候选目录扫描）、
 `gemini-pack-classify.ps1`（掩码分类）、`gemini-pack-passcontext.ps1`（掩码上下文）
 
-### 建仓与双推
+### 06_建仓与双推
 `create-github-repo.ps1`（gh 建 GitHub 私有库）、`create_gitcode_repo.py`（GitCode v5 建私有库）、
 `init-and-push.ps1`（init+提交+双推+验证）、`msg-repo.txt`（初始提交信息）
 
-### 机器修复 / 依赖 / 手册记录移动
+### 07_机器修复与clash清理 — 机器修复 / 依赖 / 手册记录移动 / 本仓库同步
 `fix-machine.ps1`、`install-flask.ps1`、`move-sandbox.ps1`、`move-vslang.ps1`、
 `admin-fix-worker.ps1` + `run-admin-fix.ps1` + `fix-admin-items.cmd`（Radmin metric 提权修复；clash 段已退役为**仅报告存在性**）、
 `make-admin-cmd.ps1`（v1 生成器，**已加 exit 0 永久停用**：一跑就会把「0 文件就删」危险逻辑写回 .cmd）、
@@ -72,24 +79,26 @@ G:\AIrenwu（AI 任务工作区）根目录散落脚本与小型工具目录的�
 `diag-github-push.ps1`（GitHub 推送失败分层诊断：7890 真实握手 / 监听条目**不加 State 过滤** / 进程身份 / git 与系统代理 / 最小真实请求 / ls-remote；只用纯 fetch，绝不 `push --dry-run`）、
 `try-direct-github.ps1`（直连判别 + per-command 出口覆盖完成双推 + 双远端比对 + 全局配置回读）、
 `verify-remote-heads.ps1` + `msg-verify-verdict.txt`（**双远端 HEAD 三态校验**，`sync-repo.ps1` 末尾自动调用：有界读取 `http.lowSpeedLimit/lowSpeedTime` + 3 次重试 + 直连回退 + 40 位 hex 校验 + `api.github.com` 交叉核对；判定分 **VERIFIED / UNVERIFIED（读不到，明确不是不一致）/ 真 MISMATCH**，退出码 0/2/1。教训：无界 `ls-remote` 卡 300 秒返回空会误报不一致；PowerShell **函数内 `Write-Output` 会污染返回值**，诊断必须走 `Write-Host`）、
-`msg-final-index.txt`（本索引补齐的提交信息）
+`msg-final-index.txt`（索引补齐的提交信息）、`msg-egress-fallback.txt`（出口回退轮提交信息）
 
-### 实验 / 预览测试
+### 08_实验与预览 — 实验 / 预览测试
 `vslang-probe.ps1` + `vslang-probe/`（VSLANG A/B 实验夹具与日志）、
 `preview-test.ps1` / `preview-fixture-test.ps1` + `preview-fixture/`（flask 预览最小夹具）
 
-### 工具项目目录
+### 工具项目目录（根目录文件夹，不在脚本库内）
 - `dsh-preset-switcher/`：DSH 预设切换器插件（client.js / index.js / 测试）
 - `gemini-pack/`：Gemini 双仓数据包构建脚本（`_build_pack.py` 等；快照 .md 不入库）
 
 ## 日常用法
 
 ```powershell
-# 在工作区根目录新增脚本后：
+# 新脚本放进 脚本库/<分类>/ 后，用通用同步脚本提交+双推+校验：
+powershell -NoProfile -ExecutionPolicy Bypass -File G:\AIrenwu\脚本库\07_机器修复与clash清理\sync-repo.ps1 -MsgFile <提交信息文件路径>
+# 或手动：
 git add -A
 git commit -m "说明"
 git push gitcode main   # 国内直连
-git push origin main    # GitHub，走本机 7890 出口（git 全局已配代理）
+git push origin main    # GitHub，走本机 7890 出口（git 全局已配代理；失败时 sync-repo 自动直连回退）
 ```
 
 > 注：本机 `D:\PyCharm\Python\python.exe` 的 console exe 于 2026-11-13 发现消失，

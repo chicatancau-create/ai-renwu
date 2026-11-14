@@ -1,4 +1,4 @@
-# init-and-push.ps1 - ASCII only. Init repo at G:\AIrenwu, commit whitelisted scripts, dual-push.
+﻿# init-and-push.ps1 - ASCII only. Init repo at G:\AIrenwu, commit whitelisted scripts, dual-push.
 $ErrorActionPreference = 'Continue'
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $repo = 'G:\AIrenwu'
@@ -34,7 +34,7 @@ Write-Output ('staged bytes = ' + $bytes)
 if ($bytes -gt 5MB) { Write-Output 'ABORT: staged too large'; git reset 2>&1 | Out-Null; exit 1 }
 
 Write-Output '=== commit ==='
-git commit -F (Join-Path $repo 'msg-repo.txt') 2>&1 | ForEach-Object { "$_" }
+git commit -F (Join-Path $PSScriptRoot 'msg-repo.txt') 2>&1 | ForEach-Object { "$_" }
 Write-Output ('commit rc=' + $LASTEXITCODE)
 git --no-pager log --oneline -1 2>&1 | ForEach-Object { "$_" }
 

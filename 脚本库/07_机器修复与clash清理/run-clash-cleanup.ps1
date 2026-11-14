@@ -1,9 +1,9 @@
-# run-clash-cleanup.ps1 - launcher: UAC-elevate the worker, poll its log, print results.
-# ASCII-only. Run: powershell -NoProfile -ExecutionPolicy Bypass -File G:\AIrenwu\run-clash-cleanup.ps1
-$log = 'G:\AIrenwu\clash-cleanup-result.log'
+﻿# run-clash-cleanup.ps1 - launcher: UAC-elevate the worker, poll its log, print results.
+# ASCII-only. Run: powershell -NoProfile -ExecutionPolicy Bypass -File G:\AIrenwu\脚本库\07_机器修复与clash清理\run-clash-cleanup.ps1
+$log = Join-Path $PSScriptRoot 'clash-cleanup-result.log'
 if (Test-Path -LiteralPath $log) { Remove-Item -LiteralPath $log -Force }
 Write-Output 'Launching elevated worker - CLICK YES on the UAC prompt...'
-Start-Process powershell -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File','G:\AIrenwu\clash-cleanup-worker.ps1' -Verb RunAs
+Start-Process powershell -ArgumentList '-NoProfile','-ExecutionPolicy','Bypass','-File',(Join-Path $PSScriptRoot 'clash-cleanup-worker.ps1') -Verb RunAs
 $deadline = (Get-Date).AddSeconds(150)
 $finished = $false
 while ((Get-Date) -lt $deadline) {

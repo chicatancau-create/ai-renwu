@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Continue'
+﻿$ErrorActionPreference = 'Continue'
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $fix = 'G:\AIrenwu\preview-fixture'
 $svgDir = Join-Path $fix 'svg_output'
@@ -7,8 +7,8 @@ $svg = '<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="720"><rect 
 Set-Content -Path (Join-Path $svgDir 'slide_01.svg') -Value $svg -Encoding ASCII
 $server = 'D:\QoderToolkit\ppt-master\scripts\svg_editor\server.py'
 $py = 'D:\PyCharm\Python\python.exe'
-$log = 'G:\AIrenwu\preview-fixture.log'
-$errlog = 'G:\AIrenwu\preview-fixture.err.log'
+$log = Join-Path $PSScriptRoot 'preview-fixture.log'
+$errlog = Join-Path $PSScriptRoot 'preview-fixture.err.log'
 $proc = Start-Process -FilePath $py -ArgumentList @($server, $fix, '--no-browser', '--port', '8765') -RedirectStandardOutput $log -RedirectStandardError $errlog -PassThru -NoNewWindow
 Start-Sleep -Seconds 5
 try {

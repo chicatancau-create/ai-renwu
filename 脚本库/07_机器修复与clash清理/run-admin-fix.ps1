@@ -1,7 +1,7 @@
-$ErrorActionPreference = 'Continue'
-$log = 'G:\AIrenwu\admin-fix-result.log'
+﻿$ErrorActionPreference = 'Continue'
+$log = Join-Path $PSScriptRoot 'admin-fix-result.log'
 if (Test-Path $log) { Remove-Item $log -Force }
-$worker = 'G:\AIrenwu\admin-fix-worker.ps1'
+$worker = Join-Path $PSScriptRoot 'admin-fix-worker.ps1'
 Write-Output 'Requesting elevation (UAC prompt will appear)...'
 try {
   Start-Process -FilePath 'powershell.exe' -ArgumentList @('-NoProfile','-ExecutionPolicy','Bypass','-File',$worker) -Verb RunAs -ErrorAction Stop

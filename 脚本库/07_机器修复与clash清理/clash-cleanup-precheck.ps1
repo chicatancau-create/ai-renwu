@@ -1,6 +1,6 @@
-# clash-cleanup-precheck.ps1 - NON-ADMIN read-only reference checks before deleting
+﻿# clash-cleanup-precheck.ps1 - NON-ADMIN read-only reference checks before deleting
 # C:\ProgramData\clash-verge-service (user approved 2026-11-13: enumerate fully, then delete)
-# ASCII-only. Run: powershell -NoProfile -ExecutionPolicy Bypass -File G:\AIrenwu\clash-cleanup-precheck.ps1
+# ASCII-only. Run: powershell -NoProfile -ExecutionPolicy Bypass -File G:\AIrenwu\脚本库\07_机器修复与clash清理\clash-cleanup-precheck.ps1
 $ErrorActionPreference = 'Continue'
 $dir = 'C:\ProgramData\clash-verge-service'
 

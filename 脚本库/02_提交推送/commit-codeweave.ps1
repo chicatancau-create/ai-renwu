@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Continue'
+﻿$ErrorActionPreference = 'Continue'
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $OutputEncoding = [System.Text.Encoding]::UTF8
 $env:GIT_TERMINAL_PROMPT = '0'
@@ -24,7 +24,7 @@ $sum = 0
 foreach ($f in $staged) { $it = Get-Item -LiteralPath (Join-Path $cw $f) -ErrorAction SilentlyContinue; if ($it) { $sum += $it.Length } }
 Write-Output ("staged MB=" + [math]::Round($sum/1MB,2))
 
-git -C $cw commit -F 'G:\AIrenwu\msg-cw.txt' 2>&1 | ForEach-Object { "$_" }
+git -C $cw commit -F (Join-Path $PSScriptRoot 'msg-cw.txt') 2>&1 | ForEach-Object { "$_" }
 if ($LASTEXITCODE -ne 0) { Write-Output 'FAIL: commit'; exit 1 }
 git -C $cw log --oneline -2 | ForEach-Object { "$_" }
 $left = git -C $cw -c core.quotepath=false status --porcelain

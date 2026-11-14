@@ -1,4 +1,4 @@
-# verify-github.ps1 - live GitHub token check via gh CLI. Read-only, no credential mutation.
+﻿# verify-github.ps1 - live GitHub token check via gh CLI. Read-only, no credential mutation.
 # 2026-11-13 FIXED (this script was previously broken in three documented ways):
 #   1) proxy port 7897 -> 7890. 7897 was the old Clash Verge port; nothing listens
 #      there now. Current proxy is FlClash on 127.0.0.1:7890, matching git global
@@ -9,7 +9,7 @@
 #      "accepts 1 arg(s), received 2". Use plain paths such as --jq .login.
 #   3) probes pass -X GET explicitly. gh api switches to POST when -f/-F is present,
 #      which once produced a 404 that looked like "the repo was deleted".
-# ASCII-only. Run: powershell -NoProfile -ExecutionPolicy Bypass -File G:\AIrenwu\verify-github.ps1
+# ASCII-only. Run: powershell -NoProfile -ExecutionPolicy Bypass -File G:\AIrenwu\脚本库\01_git账号验证\verify-github.ps1
 $ErrorActionPreference = 'Continue'
 try { [Console]::OutputEncoding = [System.Text.Encoding]::UTF8 } catch {}
 function Section([string]$t) { Write-Output ''; Write-Output ('===== ' + $t + ' =====') }

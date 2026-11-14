@@ -1,9 +1,9 @@
-# try-direct-github.ps1 - the 7890 egress accepts TCP but GitHub requests die (EOF /
+﻿# try-direct-github.ps1 - the 7890 egress accepts TCP but GitHub requests die (EOF /
 # TLS 0A000126). Test whether the DIRECT egress works, and if so finish the dual-push
 # using a PER-COMMAND proxy override. The global git config is NOT modified, and no
 # URL is substituted: origin stays https://github.com/chicatancau-create/ai-renwu.git.
 # Safety: ls-remote is a pure fetch (never triggers credential reject); no --dry-run.
-# ASCII-only. Run: powershell -NoProfile -ExecutionPolicy Bypass -File G:\AIrenwu\try-direct-github.ps1
+# ASCII-only. Run: powershell -NoProfile -ExecutionPolicy Bypass -File G:\AIrenwu\脚本库\07_机器修复与clash清理\try-direct-github.ps1
 $ErrorActionPreference = 'Continue'
 Set-Location 'G:\AIrenwu'
 Remove-Item Env:\HTTPS_PROXY -ErrorAction SilentlyContinue

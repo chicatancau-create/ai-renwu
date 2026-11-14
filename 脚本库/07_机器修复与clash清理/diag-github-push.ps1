@@ -1,9 +1,9 @@
-# diag-github-push.ps1 - why did push to origin fail with TLS 0A000126?
+﻿# diag-github-push.ps1 - why did push to origin fail with TLS 0A000126?
 # Read-only. No credential mutation: ls-remote is a pure fetch and never triggers
 # credential reject; NEVER use push --dry-run for probing (it can delete credentials).
 # URLs come from the repo's real git remote config; 127.0.0.1:7890 is the LOCAL
 # EGRESS only (gh still talks to api.github.com) - no address substitution.
-# ASCII-only. Run: powershell -NoProfile -ExecutionPolicy Bypass -File G:\AIrenwu\diag-github-push.ps1
+# ASCII-only. Run: powershell -NoProfile -ExecutionPolicy Bypass -File G:\AIrenwu\脚本库\07_机器修复与clash清理\diag-github-push.ps1
 $ErrorActionPreference = 'Continue'
 Set-Location 'G:\AIrenwu'
 

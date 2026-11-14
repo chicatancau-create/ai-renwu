@@ -1,12 +1,12 @@
-$ErrorActionPreference = 'Continue'
+﻿$ErrorActionPreference = 'Continue'
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $proj = Get-ChildItem 'G:\AIrenwu' -Directory | Where-Object { $_.Name -like '2026-11-04_*' } | Select-Object -First 1
 if (-not $proj) { Write-Output 'ABORT: project dir not found'; exit 1 }
 Write-Output ('project: ' + $proj.FullName)
 $server = 'D:\QoderToolkit\ppt-master\scripts\svg_editor\server.py'
 $py = 'D:\PyCharm\Python\python.exe'
-$log = 'G:\AIrenwu\preview-test.log'
-$errlog = 'G:\AIrenwu\preview-test.err.log'
+$log = Join-Path $PSScriptRoot 'preview-test.log'
+$errlog = Join-Path $PSScriptRoot 'preview-test.err.log'
 $proc = Start-Process -FilePath $py -ArgumentList @($server, $proj.FullName, '--no-browser', '--port', '8765') -RedirectStandardOutput $log -RedirectStandardError $errlog -PassThru -NoNewWindow
 Start-Sleep -Seconds 5
 try {

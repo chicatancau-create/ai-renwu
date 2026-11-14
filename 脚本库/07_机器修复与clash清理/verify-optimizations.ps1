@@ -1,14 +1,14 @@
-# verify-optimizations.ps1 - prove the 2026-11-13 retirement of unsafe auto-delete.
+﻿# verify-optimizations.ps1 - prove the 2026-11-13 retirement of unsafe auto-delete.
 # Checks: syntax parse, no LIVE Remove-Item in retired paths, v1 generator inert
 # (must NOT touch the .cmd), and a read-only clash-inspect run.
 # 2026-11-13 v2: the first version matched COMMENT text and reported two false
 # failures (the retirement notes themselves quote "Remove-Item"). Code lines only
 # are counted now; comment-only mentions are reported separately for transparency.
-# ASCII-only. Run: powershell -NoProfile -ExecutionPolicy Bypass -File G:\AIrenwu\verify-optimizations.ps1
+# ASCII-only. Run: powershell -NoProfile -ExecutionPolicy Bypass -File G:\AIrenwu\脚本库\07_机器修复与clash清理\verify-optimizations.ps1
 $ErrorActionPreference = 'Continue'
-$root = 'G:\AIrenwu'
+$root = $PSScriptRoot
 $bad = 0
-$targets = @('admin-fix-worker.ps1','fix-machine.ps1','make-admin-cmd.ps1','clash-inspect.ps1','audit-probe7.ps1','verify-github.ps1')
+$targets = @('admin-fix-worker.ps1','fix-machine.ps1','make-admin-cmd.ps1','clash-inspect.ps1','..\04_规则审计\audit-probe7.ps1','..\01_git账号验证\verify-github.ps1')
 
 Write-Output '=== 1. syntax parse check ==='
 foreach ($t in $targets) {

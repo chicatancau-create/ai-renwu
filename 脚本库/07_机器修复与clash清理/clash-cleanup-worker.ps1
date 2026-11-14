@@ -1,4 +1,4 @@
-# clash-cleanup-worker.ps1 - ELEVATED worker (UAC). Order: re-check refs -> full enum -> per-file delete -> typed-exception verify.
+﻿# clash-cleanup-worker.ps1 - ELEVATED worker (UAC). Order: re-check refs -> full enum -> per-file delete -> typed-exception verify.
 # Guards (handbook: wu-quanxian-du-ProgramData record): enum failure = ABORT (never treat denied as empty);
 # any service/process/task reference = ABORT; verify gone via ItemNotFoundException vs UnauthorizedAccess.
 # Port health uses REAL TCP test (Test-NetConnection). Get-NetTCPConnection: the dual-stack :: listener
@@ -6,7 +6,7 @@
 # Query by -LocalPort only (entries + OwningProcess), or better: real TCP connect. Handbook record:
 # cai-keng-sha-ruan-duan-wang...StateListen (2026-11-13 re-confirmed on FlClash 7890).
 # ASCII-only. Results -> G:\AIrenwu\clash-cleanup-result.log
-$log = 'G:\AIrenwu\clash-cleanup-result.log'
+$log = Join-Path $PSScriptRoot 'clash-cleanup-result.log'
 $dir = 'C:\ProgramData\clash-verge-service'
 function Log([string]$m) { Add-Content -LiteralPath $log -Value $m -Encoding UTF8 }
 Set-Content -LiteralPath $log -Value ('=== clash cleanup worker ' + (Get-Date -Format 'yyyy-MM-dd HH:mm:ss') + ' ===') -Encoding UTF8

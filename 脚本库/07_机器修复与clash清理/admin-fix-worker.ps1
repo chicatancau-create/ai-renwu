@@ -1,5 +1,5 @@
-$ErrorActionPreference = 'Continue'
-$log = 'G:\AIrenwu\admin-fix-result.log'
+﻿$ErrorActionPreference = 'Continue'
+$log = Join-Path $PSScriptRoot 'admin-fix-result.log'
 $lines = @()
 $lines += '=== ADMIN FIX WORKER (elevated) ==='
 $lines += ('time: ' + (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'))

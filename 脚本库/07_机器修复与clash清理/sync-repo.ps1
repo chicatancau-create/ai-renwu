@@ -1,4 +1,4 @@
-# sync-repo.ps1 - generic incremental commit + dual-push for G:\AIrenwu, with guardrails.
+﻿# sync-repo.ps1 - generic incremental commit + dual-push for G:\AIrenwu, with guardrails.
 # Guardrails: nothing staged -> abort; private/runtime paths staged -> abort; >5MB -> abort.
 # Remotes are taken from the repo's real git config (gitcode direct, origin via the
 # machine's 7890 egress from git global http.https://github.com.proxy). No URL rewriting.
@@ -6,8 +6,8 @@
 # selection only - global config untouched, no address substituted). Verification is
 # delegated to verify-remote-heads.ps1 (bounded/retried reads, three-state verdict).
 # ASCII-only. Run:
-#   powershell -NoProfile -ExecutionPolicy Bypass -File G:\AIrenwu\sync-repo.ps1 -MsgFile G:\AIrenwu\msg-xxx.txt
-param([string]$MsgFile = 'G:\AIrenwu\msg-repo-update.txt')
+#   powershell -NoProfile -ExecutionPolicy Bypass -File G:\AIrenwu\脚本库\07_机器修复与clash清理\sync-repo.ps1 -MsgFile G:\AIrenwu\msg-xxx.txt
+param([string]$MsgFile = (Join-Path $PSScriptRoot 'msg-repo-update.txt'))
 $ErrorActionPreference = 'Continue'
 Set-Location 'G:\AIrenwu'
 if (-not (Test-Path -LiteralPath $MsgFile)) { Write-Output ('ABORT: msg file missing: ' + $MsgFile); exit 1 }
@@ -57,5 +57,5 @@ if ($prc -ne 0) {
 # real MISMATCH) with exit codes 0 / 2 / 1. An unbounded or unreadable read must
 # never decide the verdict: on 2026-11-13 a 300s stall produced a FALSE mismatch
 # while both pushes had actually landed.
-& powershell -NoProfile -ExecutionPolicy Bypass -File 'G:\AIrenwu\verify-remote-heads.ps1'
+& powershell -NoProfile -ExecutionPolicy Bypass -File (Join-Path $PSScriptRoot 'verify-remote-heads.ps1')
 exit $LASTEXITCODE

@@ -1,8 +1,8 @@
-# make-admin-cmd-v2.ps1 - regenerate fix-admin-items.cmd (ASCII + CRLF, no BOM).
+﻿# make-admin-cmd-v2.ps1 - regenerate fix-admin-items.cmd (ASCII + CRLF, no BOM).
 # Changes vs v1: clash residual dir was DELETED 2026-11-13 after full enumeration + reference checks.
 # Section 2 now ONLY reports existence. The old "recursive count==0 then delete" logic is retired:
 # -ErrorAction SilentlyContinue swallows ACL denials -> false 0 -> the exact handbook pitfall.
-# ASCII-only. Run: powershell -NoProfile -ExecutionPolicy Bypass -File G:\AIrenwu\make-admin-cmd-v2.ps1
+# ASCII-only. Run: powershell -NoProfile -ExecutionPolicy Bypass -File G:\AIrenwu\脚本库\07_机器修复与clash清理\make-admin-cmd-v2.ps1
 $lines = @(
   '@echo off',
   'setlocal',
@@ -29,7 +29,7 @@ $lines = @(
   'echo === DONE ===',
   'pause'
 )
-Set-Content -LiteralPath 'G:\AIrenwu\fix-admin-items.cmd' -Value $lines -Encoding ASCII
+Set-Content -LiteralPath (Join-Path $PSScriptRoot 'fix-admin-items.cmd') -Value $lines -Encoding ASCII
 Write-Output ('written lines = ' + $lines.Count)
 Write-Output '--- readback ---'
-Get-Content -LiteralPath 'G:\AIrenwu\fix-admin-items.cmd' | ForEach-Object { Write-Output $_ }
+Get-Content -LiteralPath (Join-Path $PSScriptRoot 'fix-admin-items.cmd') | ForEach-Object { Write-Output $_ }

@@ -1,7 +1,7 @@
-# sync-repo-clash.ps1 - commit cleanup-round changes and dual-push.
+﻿# sync-repo-clash.ps1 - commit cleanup-round changes and dual-push.
 # Push targets come from git remote config (real URLs): gitcode -> gitcode.com/zhoumoyukuai/ai-renwu.git
 # (direct), origin -> github.com/chicatancau-create/ai-renwu.git (via local 7890 exit, not URL substitution).
-# ASCII-only. Run: powershell -NoProfile -ExecutionPolicy Bypass -File G:\AIrenwu\sync-repo-clash.ps1
+# ASCII-only. Run: powershell -NoProfile -ExecutionPolicy Bypass -File G:\AIrenwu\脚本库\07_机器修复与clash清理\sync-repo-clash.ps1
 Set-Location G:\AIrenwu
 git add -A
 $staged = @(git diff --cached --name-only)
@@ -14,7 +14,7 @@ $bytes = 0
 foreach ($s in $staged) { $p = Join-Path 'G:\AIrenwu' $s; if (Test-Path -LiteralPath $p) { $bytes += (Get-Item -LiteralPath $p).Length } }
 Write-Output ("staged bytes = " + $bytes)
 if ($bytes -gt 5MB) { Write-Output 'ABORT size cap 5MB'; exit 1 }
-git commit -F G:/AIrenwu/msg-clash-cleanup.txt
+git commit -F (Join-Path $PSScriptRoot 'msg-clash-cleanup.txt')
 Write-Output ("commit rc=" + $LASTEXITCODE)
 if ($LASTEXITCODE -ne 0) { Write-Output 'COMMIT FAILED - abort'; exit 1 }
 git push gitcode main

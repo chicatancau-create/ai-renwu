@@ -1,9 +1,9 @@
-$ErrorActionPreference = 'Continue'
+﻿$ErrorActionPreference = 'Continue'
 [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
 $OutputEncoding = [System.Text.Encoding]::UTF8
 $env:GIT_TERMINAL_PROMPT = '0'
 $p = 'E:\fullstack-code'
-$msg = 'G:\AIrenwu'
+$msg = $PSScriptRoot
 
 Write-Output '=== c1: .gitignore ==='
 git -C $p add .gitignore 2>&1 | ForEach-Object { "$_" }

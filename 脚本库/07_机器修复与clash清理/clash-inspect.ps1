@@ -1,4 +1,4 @@
-$ErrorActionPreference = 'Continue'
+﻿$ErrorActionPreference = 'Continue'
 $p = 'C:\ProgramData\clash-verge-service'
 Write-Output ('exists: ' + (Test-Path $p))
 # 2026-11-13: every enumeration is now guarded by Test-Path. PS quirk observed today:
