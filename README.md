@@ -98,6 +98,17 @@ G:\AIrenwu（AI 任务工作区）的版本化备份，**双平台私有仓库**
 `vslang-probe.ps1` + `02_项目代码/vslang-probe/`（VSLANG A/B 实验夹具与日志）、
 `preview-test.ps1` / `preview-fixture-test.ps1` + `02_项目代码/preview-fixture/`（flask 预览最小夹具）
 
+### 09_机器体检与垃圾扫描 — 电源方案 / 全零损坏 / Agent 产物（2026-11-15 重建，原脚本随 %TEMP% 被更新重启清掉）
+`power_schemes.py`（电源方案盘点：`powercfg -query` 归一化后 sha256 判重；`--delete` 对微软内建与当前活动方案硬拒绝；
+`--backup DIR` 把 `.reg` + 方案名清单导出到 DIR，**DIR 落在 TEMP 直接拒绝**返回 3；背景：Driver Booster 每运行一次多复制一份同名方案）、
+`zero_fill_scan.py`（扫「尺寸正常但内容全 `0x00`」的断电后遗症：头 1 MiB + 中点取样先判，`--full` 逐字节确认，
+输出严格分「全零 / 疑似 / 有内容 / 读不了」四档，稀疏文件用 `GetCompressedFileSizeW` 单独标；
+判据正负对照已在本机临时夹具上跑过）、
+`agent_artifacts.py`（各 AI Agent 与工具产物点位：大小 / 文件数 / 静默天数 / 档位「安全·需确认·禁区」，**只报告不删除**；
+本机 `DisableLastAccess=1` 所以只看 mtime）
+经验记录在手册：`E:\本地AI使用手册\03-通用\03-调试与验证\踩坑-电源计划被驱动更新工具复制成同名方案且FriendlyName是REG_EXPAND_SZ.md`、
+`E:\本地AI使用手册\03-通用\04-工程规范与安全\踩坑-回退备份与取证放TEMP会被更新重启清空且日志会滚存.md`
+
 ### 工具项目目录（在 `02_项目代码/` 下）
 - `dsh-preset-switcher/`：DSH 预设切换器插件（client.js / index.js / 测试；.dsh profile 以 link: 引用，node_modules 内为 Junction）
 - `gemini-pack/`：Gemini 双仓数据包构建脚本（`_build_pack.py` 等；快照 .md 不入库）
