@@ -13,11 +13,14 @@ G:\AIrenwu（AI 任务工作区）的版本化备份，**双平台私有仓库**
 | 目录 | 放什么 |
 |---|---|
 | `01_任务归档/` | 所有 `YYYY-MM-DD_任务名/` 任务文件夹（含历史任务），内部标准分层 `01_报告 / 02_证据日志 / 03_工具脚本 / 04_产物` |
-| `02_项目代码/` | 长期维护的项目：`dsh-preset-switcher/` `gemini-pack/` `vslang-probe/` `preview-fixture/` `KaihongOS/` |
-| `03_备份/` | 原件备份：`DeskBox-原件备份-*` `workbuddy-backup/` `_backup/` `_已废弃脚本归档_20261115/` |
+| `02_项目代码/` | 长期维护的项目：`dsh-preset-switcher/` `gemini-pack/` `vslang-probe/` `preview-fixture/` |
+| `03_备份/` | 原件备份：`DeskBox-原件备份-*` `_backup/` `_已废弃脚本归档_20261115/` |
 | `04_磁盘与系统/` | `磁盘整理/` `磁盘占用体检/` 等磁盘/系统级盘点 |
 | `05_取证扫描/` | `_scan/` 与并行会话的取证/探针散件 |
-| `脚本库/` | 可复用脚本与提交信息，按用途 8 分类（见下方索引） |
+| `脚本库/` | 可复用脚本与提交信息，按用途分类（见下方索引） |
+
+> **`02_项目代码/KaihongOS/` 目前未建**：KaihongOS 的安装镜像与 QEMU/VMware 使用文档存放在
+> `H:\下载\KaihongOS桌面版（x86）6.1试用版安装镜像包\`（2026-11-15 从回收站抢救还原），属资料、不入库；将来有代码再建目录。
 
 **以后创建任务/人物后的一切产出**：先建 `01_任务归档/YYYY-MM-DD_任务名/`，所有东西按标准分层放进对应子目录，
 禁止散落到根目录、桌面、下载目录。可复用脚本沉淀进 `脚本库/<分类>/`。没有合适分类就新建分类文件夹，不许放外面。
@@ -109,6 +112,21 @@ G:\AIrenwu（AI 任务工作区）的版本化备份，**双平台私有仓库**
 本机 `DisableLastAccess=1` 所以只看 mtime）
 经验记录在手册：`E:\本地AI使用手册\03-通用\03-调试与验证\踩坑-电源计划被驱动更新工具复制成同名方案且FriendlyName是REG_EXPAND_SZ.md`、
 `E:\本地AI使用手册\03-通用\04-工程规范与安全\踩坑-回退备份与取证放TEMP会被更新重启清空且日志会滚存.md`
+
+### 10_清理与空间回收 — 回收站 / 临时文件 / 系统日志
+`cleanup_round2.ps1`（五段式清理：各盘空间快照 → 回收站（`Clear-RecycleBin` + 直接删 `$RECYCLE.BIN` 残渣，留目录壳）→
+临时文件（`%TEMP%` / `Windows\Temp` / CrashDumps）→ `C:\Windows\Logs` → 其它候选（`SoftwareDistribution\Download`、
+`C:\$SysReset`、Prefetch、WER）；**默认 `-DryRun` 只盘点，`-Apply` 才真删**，日志落任务目录 `02_证据日志`，
+脚本库副本落 `%TEMP%\dsh-cleanup-logs`）、
+`survey_junk.ps1`（盘点回收站 / 各垃圾候选 / 各盘现状）、
+`inspect_recycle.ps1`（回收站按扩展名、按盘、最大文件、月份分布统计）、
+`read_recycle_meta.ps1`（解析 `$I` 元数据还原原始路径：v2 偏移 8=原始大小、24=路径长度、28 起 UTF-16LE）、
+`archive_recycle_list.ps1`（**删前存档**：回收站完整清单写成 CSV，删后仍可追溯删了什么）、
+`analyze_recycle_authored.ps1`（按顶层目录聚合来源，判定哪些可能是用户原创内容、需人工过闸）、
+`restore_selected.ps1`（按「原始路径前缀 → 目标根」规则表定向还原，命中后逐个数文件数与字节数校验）
+实测与判据（2026-11-15）：回收站 52,956 文件 / 21.22 GB 一次清空，全盘合计 +22.42 GB；
+`C:\Windows\Logs`、`C:\$SysReset`、`SoftwareDistribution\Download` **非管理员删不掉**，按判据纪律记「失败」不记「已清理」；
+还原**目录**必须 `robocopy /E`——`Copy-Item` 不加 `-Recurse` 只建空壳，且目录 `Length` 为 0 会让大小校验误报 PASS。
 
 ### 工具项目目录（在 `02_项目代码/` 下）
 - `dsh-preset-switcher/`：DSH 预设切换器插件（client.js / index.js / 测试；.dsh profile 以 link: 引用，node_modules 内为 Junction）

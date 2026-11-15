@@ -1,0 +1,21 @@
+沉淀清理与空间回收脚本，并修正 README 与实际目录不符处
+
+脚本库新增 10_清理与空间回收（7 个脚本）：
+- cleanup_round2.ps1：五段式垃圾清理（各盘快照 / 回收站 / 临时文件 / Windows\Logs / 其它候选），无参默认 -DryRun，-Apply 才真删
+- survey_junk.ps1：盘点回收站与各垃圾候选、各盘现状
+- inspect_recycle.ps1：回收站按扩展名 / 按盘 / 最大文件 / 月份分布统计
+- read_recycle_meta.ps1：解析 $I 元数据还原被删文件的原始路径（v2 偏移 8=大小、24=路径长度、28 起 UTF-16LE）
+- archive_recycle_list.ps1：删除前把回收站完整清单存档为 CSV，删后仍可追溯删了什么
+- analyze_recycle_authored.ps1：按顶层目录聚合来源，判定哪些是用户原创内容需人工过闸
+- restore_selected.ps1：按「原始路径前缀 → 目标根」规则表定向还原，含文件数与字节数校验
+
+脚本路径全部改为 $PSScriptRoot 相对推导：任务目录副本日志落 02_证据日志，脚本库副本落 %TEMP%\dsh-cleanup-logs，不污染脚本库。
+
+README 修正（与实际目录对齐）：
+- 02_项目代码 移除并不存在的 KaihongOS/，改为说明其安装镜像与 QEMU/VMware 文档存放于 H:\下载\（2026-11-15 从回收站抢救还原，属资料不入库）
+- 03_备份 移除并不存在的 workbuddy-backup/
+- 脚本库分类数不再写死，新增 10_清理与空间回收 索引
+
+实测与判据（2026-11-15）：回收站 52,956 文件 / 21.22 GB 一次清空，全盘合计新增可用 22.42 GB；
+C:\Windows\Logs、C:\$SysReset、SoftwareDistribution\Download 非管理员删不掉，按判据纪律记「失败」不记「已清理」；
+还原目录必须 robocopy /E，Copy-Item 不加 -Recurse 只建空壳且目录 Length 为 0 会让大小校验误报 PASS。
