@@ -47,6 +47,7 @@ G:\AIrenwu（AI 任务工作区）的版本化备份，**双平台私有仓库**
 |---|---|
 | `git-accounts-check.ps1` | 盘点本机两个 git 账号（config/ssh/cmdkey/gh/GCM） |
 | `verify_gitcode.py` | CredReadW 读 GitCode 凭据 + api/v5/user 活验（不回显密钥） |
+| `store-git-credential.py` | 把 GitCode/AtomGit 令牌存进 Windows 凭据管理器：getpass 隐藏输入、令牌形状闸门（挡住「把命令当密钥粘贴」）、用户名不留系统账户名默认值（2026-10-15 由会话产物沉淀，原名 `store-atomgit-credential.py`） |
 | `check_gitcode_emails.py` | 查 GitCode 账号绑定邮箱（api/v5/emails） |
 | `verify-github.ps1` | GitHub 验证初版（**已废弃**，jq 内嵌双引号被 PS5.1 拆参） |
 | `verify-github2.ps1` | GitHub 验证（系统代理/进程排查） |
