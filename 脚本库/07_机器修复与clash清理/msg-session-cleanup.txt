@@ -1,0 +1,23 @@
+沉淀本会话可复用脚本：技能栈体检 / 备份字节一致性验收 / 回收站取证恢复 / 许可取证
+
+会话收尾清理（2026-11-15）：把散在根目录 _audit\ 的工具按工作区大纲归类，
+跨任务可复用的 11 个沉淀进 脚本库，一次性施工脚本归进
+01_任务归档\2026-11-15_省token与技能路由\03_工具脚本\，证据归进 02_证据日志\。
+清掉临时垃圾 67.45 MB（uv bootstrap venv 39.2MB、两份 cc-switch 只读副本 28MB、
+上游冗余副本、__pycache__、一次性探针）。根目录恢复合规（只 6 类文件夹 + README + .gitignore）。
+
+新增脚本：
+- 04_规则审计（机器快照）\audit_all.py — headroom/技能栈 11 组 57 项只读体检
+- 03_工作区扫描\audit_skills_quality.py — 技能库质量审计（frontmatter/描述长度/死路径/密钥）
+- 03_工作区扫描\regen_docs.py — 按逐条取证的 EVIDENCE 表重生成 README/THIRD_PARTY
+- 06_建仓与双推\verify_restore.py — 备份验收：4 远端浅克隆逐文件 sha256 比对
+- 06_建仓与双推\fix_byte_fidelity.py — git add --renormalize 修字节一致性
+- 06_建仓与双推\gitcode_push.py — GitCode 建仓 + 推送 + SHA 回读
+- 07_机器修复与clash清理\restore_from_bin.py — 回收站 $I 元数据取证 + 原样恢复
+- 07_机器修复与clash清理\who_reverted.py — 删除时间线取证
+- 07_机器修复与clash清理\search_recycle.py — 回收站按原路径检索
+- 05_建仓预检与密钥扫描\probe_provenance.py — 逐条取证许可/来源
+- 05_建仓预检与密钥扫描\probe_qoder_push.py — 推送前密钥扫描 + 体积/许可盘点
+
+经验已回写 E:\本地AI使用手册（7 条 verified 记录 + 4 处索引同步），
+本仓库只放脚本，不放手册正文。密钥扫描：无真实凭据入库。
