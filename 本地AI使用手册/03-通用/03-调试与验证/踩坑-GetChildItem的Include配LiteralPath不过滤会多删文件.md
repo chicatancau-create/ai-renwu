@@ -77,9 +77,10 @@ $targets = @(Get-ChildItem -LiteralPath $p -Recurse -Force -File -ErrorAction Si
 
 - [x] 静态检查：两种写法在同一目录、同一时刻对照，计数 237 vs 221，差值可由扩展名分布（`.json` 11 + `.xml` 5）完全解释
 - [x] 手动回归：`system_cleanup_worker.ps1 -DryRun` 重跑，输出 221 个 / 27.3 MB
-- [ ] 真实删除：**未跑**——本轮会话非管理员，删 `C:\Windows\Logs` 必然失败（实测 `Remove-Item` 报
-      `ArgumentException` + `Access to the path is denied.` + HRESULT `0x80070057`）。真删由
-      `run-system-cleanup.cmd` 提权后执行，结果待补记
+- [x] **真实删除（2026-11-16 17:07:10，管理员身份实跑）**：`C:\Windows\Logs` 237 文件 / 28.5 MB →
+      **185 文件 / 5.2 MB**，删除成功 52（= `.log` 19 + `.etl` 33），失败 169（`.etl` 正被服务写入，共享冲突）
+- [x] **"只删这几类"的最终数据验证**：清理后剩余 185 个 = `.etl` 169 + **`.json` 11 + `.xml` 5**，
+      `.json`/`.xml` **一个都没被删**——这正是修复生效的直接证据；若用错误的 `-Include` 写法，这 16 个文件必然一起没了
 - [ ] 其它 PowerShell 版本（7.x）未测
 
 ## 可复用规则
