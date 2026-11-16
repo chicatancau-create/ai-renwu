@@ -1,0 +1,13 @@
+手册回写：Get-ChildItem 的 -Include 配 -LiteralPath 不过滤（会多删文件）
+
+1. 新增记录 03-通用/03-调试与验证/踩坑-GetChildItem的Include配LiteralPath不过滤会多删文件.md（verified）
+   - 现象：清理 C:\Windows\Logs 时 -Include *.log,*.etl,*.txt,*.cab,*.old 命中 237 个（=全目录文件数），期望 221
+   - 判据：差 16 = .json 11 + .xml 5，与该目录扩展名分布（.etl 202 + .log 19 + .json 11 + .xml 5 = 237）完全对上
+   - 根因：-LiteralPath 不做通配解析，-Include 被静默忽略；-Recurse 救不了
+   - 修复：Where-Object { $_.Extension -in '.log','.etl','.txt','.cab','.old' } → 221 个 / 27.3 MB
+   - 可复用规则：按模式挑文件再删的脚本，必须把命中数与扩展名分布交叉核对；DryRun 与真删共用同一段筛选，多报即多删
+   - 明确留空：真实删除未跑（非管理员），PowerShell 7.x 未测
+
+2. 索引同步两处
+   - 03-通用/03-调试与验证/README.md 记录清单追加一条
+   - 03-通用/通用索引.md 记录清单追加一条
