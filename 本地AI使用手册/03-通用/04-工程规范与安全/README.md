@@ -13,7 +13,7 @@
 
 - [[规则-规则类改动先写死判定式并核对注释与代码一致]]（verified，2026-10-19）— 口语需求先落成 a/b/c 判定式；**注释里的公式在代码里找不到就是 bug**；附一次改 4 稿的自省记录
 - [[踩坑-提交前审查两坑-全暂存区混入空文件与课程样例误判]]（verified，2026-11-13）— git commit 提交整个暂存区：AM 空文件会混入无关提交，提交前重新 add + numstat 验证；排除「运行时产物」前先 grep 引用：代码读它+无代码生成它=课程样例必须入库
-- [[规则-工作区大纲与归类铁律]]（verified，2026-11-15）— G:\AIrenwu 根只允许 6 类文件夹+README/.gitignore；创建任务先建 01_任务归档/YYYY-MM-DD_任务名/ 标准分层；移不动=停→移→恢复；历史证据快照不改写
+- [[规则-工作区大纲与归类铁律]]（verified，2026-11-15；2026-11-16 更新为 7 类）— G:\AIrenwu 根只允许 7 类文件夹（含本地AI使用手册）+README/.gitignore；创建任务先建 01_任务归档/YYYY-MM-DD_任务名/ 标准分层；移不动=停→移→恢复；历史证据快照不改写
 - [[规则-批量搬迁先patch引用后搬与证据快照排除]]（verified，2026-11-15）— 批量搬迁：dry-run→镜像备份→先 patch 引用（长名优先+边界+双斜杠+$PSScriptRoot）后搬→守恒断言；证据/备份/node_modules 排除 patch；活体清单 schtasks/Run/快捷方式/pnpm link:/手册
 - [[踩坑-删联接目录会跟随联接回收真源须靠回收站元数据取证]]（verified，2026-11-15）— **用资源管理器删「全是联接」的目录会跟随联接把真源一起回收**（本机技能库一夜被清空三次）；判据「进回收站⇒shell 删除，不是 rmtree」；解析 `$I` 元数据（version/size/FILETIME/UTF-16 原路径）取证并原样恢复 13 文件；`D:\$RECYCLE.BIN\S-1-5-18` 属 SYSTEM 须跳过；加固＝联接图之外留真实镜像 + 20s 自愈循环（实测两次故障注入均一轮修复）
 - [[踩坑-gitattributes晚于首次add致备份CRLF被规范化]]（verified，2026-11-15）— **push 返回 0 不等于备份可用**：`.gitattributes` 晚于首次 `git add` 致 79 文件 CRLF→LF 入库；`git rm -r --cached .` 不保证清空索引，修法 `git add --renormalize .`；**验收标准＝从远端克隆回来逐文件 sha256 一致**（4 远端 13314 文件全绿）；git 在 Windows 把 pack 设只读，rmtree 须 onerror chmod 重试
@@ -36,3 +36,4 @@
 - [[规则-仓库公开前脱敏须扫全历史且改证据要重签哈希清单]]（verified，2026-11-13 事发 / 2026-11-15 回写并补第二次实例，severity high）— 公开不可逆。四道关：①扫**全历史** `git grep $(git rev-list --all)` 而非只扫工作区；②只改文档与证据，**代码默认值不动**（改成占位符会把脚本改坏）；③改受哈希清单保护的产物必须用官方工具重签（判保护要**向上找 manifest** 比完整相对路径，本轮误判过）；④历史清不掉时**让用户拍板**。生效判据是匿名 API 200，并检查默认分支是否指向最新内容；**2026-11-15 证据⑥**：漏点的不是文件而是**提交信息**（2 条带第三方对象名，`git log --all` 才看得见）与**测试夹具硬编码真实标识符**（换同形状合成值 + `filter-branch --msg-filter` 重写并删 `refs/original`）
 - [[规则-采集工程能力矩阵未验证不得写实时不漏消息]]（verified，2026-11-15，severity high）— 能力矩阵只有 supported/partial/unsupported/**not_verified** 四档，最后一档是「我还没量到」不是委婉的不支持；红线词「实时/全历史/不漏消息」在没有跨 00:00 分页证据前不得出现在界面与文档。只追加存储下所有统计必须共用**一处**「最新版本」谓词，否则同一数据在两个接口报出 559 与 288、今日样本 166 与 67。附一条假阴性教训：探针拦掉非 GET 会让被测页面回「服务异常」，差点把可用功能写成 unsupported——观测默认不改道
 - [[规则-本机管理员提权可静默完成不要推给用户]]（verified，2026-11-16，severity high）— **`IsInRole(Administrator)=False` 只说明当前令牌没提权，推不出"这台机器提不了权"**：本机 `ConsentPromptBehaviorAdmin=0` 且账户在 Administrators 组内，`Start-Process -Verb RunAs -PassThru -WindowStyle Hidden` 可**静默提权**（实测 `admin=True`、无弹窗，真删 `C:\Windows\Logs` 237→185）；`-Verb RunAs` 不支持重定向 stdout，子进程结果让它自己写日志再读；交付物里不许出现"请你双击/请你找这个文件"
+- [[规则-任务区与手册一体化联动]]（verified，2026-11-16）— 手册由 E 盘迁入 `G:\AIrenwu\本地AI使用手册` 成为根第 7 类；任务区 README↔手册首页/README 双向入口互链；回写按用户 2026-10-13 授权自动执行（旧「先确认再写 E 盘」作废）；`~/.dsh/AGENTS.md` 第〇节曾缺失已重建（≡`D:\DevCache\.dsh\AGENTS.md`）；技能经 skill-router 按需读，旧 handbook_search.py 已废弃；活文档改新路径、历史证据保留旧路径

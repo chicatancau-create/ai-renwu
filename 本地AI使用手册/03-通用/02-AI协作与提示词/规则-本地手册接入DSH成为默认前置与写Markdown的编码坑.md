@@ -14,6 +14,12 @@ tags: ["默认调用", "skill", "AGENTS.md", "反引号", "编码", "沙箱"]
 > `verified`：本文「已完成」项都在 2026-10-19 的 DSH Desktop 会话里实际做过并复核过；
 > 没实测的项在「验证记录」里留 `[ ]` 并写明原因。
 
+> **2026-11-16 更新指针（历史正文保留不改）**：手册已迁入 `G:\AIrenwu\本地AI使用手册`（E 盘旧路径不存在）；
+> 全局触发文件 `~/.dsh/AGENTS.md` 曾缺失，2026-11-16 已重建于 `$DSH_HOME/AGENTS.md`（≡`D:\DevCache\.dsh\AGENTS.md`）；
+> 技能改为经 skill-router 按需读 `D:\Skills\local-ai-handbook\SKILL.md`（旧 `~/.dsh/skills/` 安装方式与 `handbook_search.py` 已废弃）；
+> 回写按用户 2026-10-13 授权自动执行，不再逐次请示。现行联动状态见
+> [[03-通用/04-工程规范与安全/规则-任务区与手册一体化联动|任务区与手册一体化联动]]。
+
 ## 一句话结论
 
 让手册「默认被用」不能只靠 skill 描述——**必须把触发点写进每次都会加载的 `~/.dsh/AGENTS.md`**；
