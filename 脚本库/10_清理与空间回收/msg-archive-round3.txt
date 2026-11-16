@@ -1,0 +1,21 @@
+收尾轮：本地AI使用手册迁入并纳入版本管理，清理工具补齐
+
+1. 本地AI使用手册/ 纳入仓库（.gitignore 放行）
+   - 2026-11-16 由并行会话从 E:\本地AI使用手册 迁入工作区根目录（E 盘正在做 ACL 修复，原目录已不存在）
+   - 入库前密钥扫描 233 文件 / 1.18 MB：9 类规则命中 5 处，逐条核实全是误报
+     （MD5 摘要 a52990ee…/30d342ec… 32 位十六进制 x3；文档正文里字面提到 -----BEGIN PRIVATE KEY----- 标记串 x2）
+   - README：根目录"6 类文件夹"改为 7 类，新增 本地AI使用手册/ 行与迁入说明；
+     两处陈旧 E:\本地AI使用手册 路径改为工作区内相对路径
+   - 手册自身 AGENTS.md 适用范围同步改为 G:\AIrenwu\本地AI使用手册（旧文档里的 E 盘提法按历史记录保留）
+
+2. 脚本库 10_清理与空间回收
+   - 新增 system_cleanup_worker.ps1 + run-system-cleanup.cmd：
+     非管理员删不掉的三个系统目录（Windows\Logs / SoftwareDistribution\Download / C:\$SysReset）一键提权清理
+     fltmc 判管理员 + _SYS_CLEANUP_ELEVATED 自我提权护栏 + choice 取消档数字最大最先判；
+     菜单 [1] 仅盘点 [2] 执行清理；DryRun 实测 Windows\Logs 可删 221 个 / 27.3 MB
+   - archive_recycle_list.ps1 加 -Tag 参数，避免覆盖 11-15 那轮的历史存档
+   - cleanup_round2.ps1 两份副本统一为任务目录版（脚本库副本不再把日志写进仓库）
+   - 实测坑：Get-ChildItem -LiteralPath -Recurse -Include 不过滤，必须 Where-Object { $_.Extension -in ... }
+
+3. 脚本库 05_建仓预检与密钥扫描
+   - 新增 scan_handbook_secrets.py（入库前密钥扫描，支持 9 类凭据规则 + 上下文输出）

@@ -1,4 +1,7 @@
 ﻿# 删除前存档：把回收站完整清单写成 CSV（删除后仍可追溯删了什么）
+# 用法：archive_recycle_list.ps1 [-Tag 20261116_r3]
+#   Tag 只用于文件名后缀，防止覆盖历史存档（历史证据快照不改写）。
+param([string]$Tag = (Get-Date -Format 'yyyyMMdd_HHmmss'))
 $ErrorActionPreference = 'SilentlyContinue'
 
 # 路径基准：优先用上层目录（任务目录），否则退回脚本所在目录
@@ -11,7 +14,7 @@ New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 $base = $Base
 $outDir = (Join-Path $OutDir 'raw')
 New-Item -ItemType Directory -Force -Path $outDir | Out-Null
-$csv = Join-Path $outDir '回收站清单_删除前.csv'
+$csv = Join-Path $outDir ('回收站清单_删除前_' + $Tag + '.csv')
 
 $rows = @()
 foreach ($k in 'C', 'D', 'E', 'F', 'G', 'H') {

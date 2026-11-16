@@ -1,0 +1,178 @@
+﻿---
+title: "App 自更新后手动重装其服务：装进去的是旧二进制，且卸载器会连带删掉服务托管的内核，症状是静默降级 Sidecar"
+date: 2026-11-04
+domain: common
+category: 调试与验证
+status: verified
+severity: high
+stack: [Windows, Clash Verge Rev, 服务化桌面应用]
+tags: [服务模式, sidecar降级, 自更新, 内核核准, 父进程归属]
+---
+
+# 问题：桌面 App 带「服务 + 内核」结构时，手动重装服务会被它自己的自更新打回不兼容
+
+> 本条是 [[踩坑-无权限读ProgramData被当成文件不存在致误删服务拆掉内核]] 的后续：那轮误判引发了一次重装，
+> 这次记的是**那次重装留下的后遗症**。
+
+## 一句话结论
+
+带「服务 + 由服务托管的内核」结构的桌面软件，**只要它在中间自更新过一次，你手动重装的服务就是旧版**；
+而它的卸载器还会把服务 `cores\` 里的内核一起删掉 —— 两处坏掉都不会让代理端口消失，
+只会让应用**静默降级成自己 fork 一个子进程顶替**，所以「端口在听」绝不能当「服务模式正常」的证据。
+
+## 触发条件与影响
+
+- 软件：Clash Verge Rev（Tauri），内核 `verge-mihomo`，服务 `clash_verge_service`（内核正常时跑在服务里）
+- 环境与版本：Windows 11 28000；App 11-03 17:57 自更新 2.4.x → **2.5.10**；
+  17:00（更新前 57 分钟）我按 App 当时的 `resources\clash-verge-service-install.exe` 重装过服务
+- 触发条件：①服务二进制版本 ≠ App 自带那份；②服务 `cores\` 里没有 App 选定的内核
+- 影响范围：横幅「服务无法启动内核，已降级为 Sidecar 模式运行，服务仍不可用。」
+  —— 代理仍可用（7897 在听），但失去服务级能力（TUN、开机无 UI 起内核等），且每次重启都刷这条横幅
+
+## 复现步骤
+
+1. 前置条件：一个「服务托管内核」型软件正在跑，GUI 与内核父进程关系正常
+2. 操作：用**当前版本** App 自带的 install/uninstall 重装服务 → 之后让 App 自更新到新版本 → 重启 GUI
+3. 预期：新版本 App 认领新服务，内核仍由服务托管
+4. 实际：App 判定服务不兼容并退回 Sidecar；日志分别给出两种文案 ——
+   - 服务二进制对不上：`registered service is unavailable or incompatible`
+   - 内核缺失/不匹配：`the selected approved core is missing or does not match; reinstall the service to repair it`
+
+## 证据
+
+同一台机、同一轮取证（全部为本轮实测）：
+
+| 对象 | 大小 | 时间 | 说明 |
+|---|---|---|---|
+| `D:\Clash Verge\clash-verge.exe` | — | 11-03 17:57 | FileVersion **2.5.10** |
+| `D:\Clash Verge\resources\clash-verge-service.exe` | **3,418,624** | 11-01 00:08 | 新版 App 自带 |
+| `C:\ProgramData\clash-verge-service\bin\clash-verge-service.exe` | **3,379,200** | 11-03 17:00 | 我装进去的旧版 ⇒ 尺寸即证据 |
+| `C:\ProgramData\clash-verge-service\cores\verge-mihomo.exe` | 61,271,040 | 10-22 | **10:37 探针里还在，10:59 探针里 MISSING** ——被 10:55 那次 uninstall 删掉 |
+
+- 服务侧日志正常到让人误判：`Acquired service owner lock` / `IPC server started` /
+  `GET /magic 200` `GET /version 200` `POST /installation 200` 全绿，**但内核就是不起**，
+  并留下一句关键线索：`Desired state does not require core restore`
+- `users\<hash>\desired-state.json` 停留在 `"core_should_be_running": false`（mtime 还是重装那一刻）
+- 归属判据：Sidecar 时 `verge-mihomo` 的父进程 = `clash-verge.exe`；修好后父进程 = 服务 PID
+
+## 根因分析
+
+- 已确认根因：**两处版本/内容错配**，都由「重装」与「自更新」交叉造成
+  1. 我 17:00 装的服务是旧 App 的产物，17:57 的自更新只换 App 不换已注册服务 ⇒ 新 App 认不出旧服务；
+  2. `clash-verge-service-uninstall.exe` 会清掉服务目录里的 `cores\*.exe`，而 **App 不会自动把内核补回去**
+     （它只做校验，缺了就判定不可用并降级），于是错误从「服务不兼容」变成「内核缺失」。
+- 排除过的假设：①「服务没装/没跑」—— 服务 Running/Auto 且 IPC 全 200，否；
+  ②「属主令牌坏了」——`active-owner.json`/`owner-generation.json` 的 SID 与 owner_key 都对得上，否；
+  ③「只要重装服务就够了」——重装后仍报第二条错，说明 `cores\` 缺失是独立的第二个病。
+- 问题归属：**本次修改引入**（两次都是我重装造成的，不是软件原生故障）
+
+## 最小修复
+
+顺序不能反，且**两步都要**：
+
+```powershell
+# 提权。1) 用「当前版本 App 自带」的安装器重装服务，让二进制对齐
+sc.exe stop clash_verge_service
+& 'D:\Clash Verge\resources\clash-verge-service-uninstall.exe'   # 注意它会删 cores
+& 'D:\Clash Verge\resources\clash-verge-service-install.exe'
+
+# 2) 把 App 自带内核放回服务内核目录（服务不会自己补，App 也不会）
+Copy-Item 'D:\Clash Verge\verge-mihomo.exe' `
+          'C:\ProgramData\clash-verge-service\cores\verge-mihomo.exe' -Force
+
+# 3) 用软件平时的启动方式重启 GUI，让它重新评估服务（老进程不会自己重估）
+schtasks /Run /TN 'Clash Verge (Admin)'
+```
+
+核验（每条都要求实测值，不接受「应该好了」）：
+
+- `Get-FileHash` 两个服务二进制 **SHA256 相等**
+- `verge-mihomo` 的 `ParentProcessId` == 服务的 `ProcessId`
+- `desired-state.json` 变为 `"core_should_be_running": true` 且 mtime 是刚刚
+- App 日志**不再新增** `Starting Sidecar with Service unavailable`（旧告警残留属正常，看 mtime）
+- 端口 + 出境双测：`curl -x http://127.0.0.1:7897 https://github.com` 与直连各一次
+
+实测结果：修复后 `github_via7897=200 t=1.30s`、`google_via7897=204`、`baidu_direct=200`、
+`git ls-remote` 通、`ProxyEnable=1`；中断约 45 秒（11:00:52 结束 GUI → 11:01:06 内核由服务拉起）。
+
+## 验证记录
+
+- [x] 端到端：内核归属、期望状态、服务轮询、App 日志、代理与直连出网 —— 全部本轮实测通过
+- [x] 哈希：修复后服务二进制与 App 自带份一致（`56D68AFD…9AB3`）；内核复制目标与源一致（`0B4C7353…4D3DA`）
+- [x] 界面横幅：屏幕 BitBlt 抓 Verge 窗口目视确认 —— 无降级横幅，系统代理已启用、活跃连接 20（WebView2 窗口 PrintWindow 会全黑，只能屏幕截图）
+- [x] alpha 补回：尺寸 / mtime / SHA256 / `icacls` 四项与母本及同目录对齐；`cores\` 现有两份内核
+- [x] 补回未扰动运行态：内核仍由服务托管（PID 29088 父 = 服务 44652）、7897 仍由它监听
+
+## 可复用规则
+
+1. **动这类「服务 + 内核」软件的服务之前，先看 App 主程序的 `FileVersion` 和它 `resources\` 里服务二进制的大小/哈希**；
+   两者与已注册服务不一致就别装 —— 你装的是过去版本。
+2. **自更新之后必须重看服务**：更新器一般不重装已存在的服务，会留下旧二进制。
+3. **判「服务模式正常」的唯一硬判据是内核进程的父进程 = 服务进程**；
+   端口在听、IPC 全 200、服务 Running 都不能证明，降级态会把这些全留着。
+4. 卸载型安装器**默认假定它会清空自己的数据目录**：跑之前先备份 `cores\`，或改走 App 自己的「重装服务」按钮。
+5. GUI 老进程不会重新评估服务，**修完必须按平时的启动方式重启一次**（计划任务 / 开机项），
+   否则你只会看到「改了没生效」并误判修复失败。
+6. **手工往服务的数据目录放回文件时，ACL 要与同目录既有文件对齐后再收工**：
+   `Copy-Item` 继承父目录 ACL，这里父目录是 `SYSTEM/Administrators (OI)(CI)(F)`，
+   所以放回去的两份都是 `(I)(F)`，服务能执行。判据用 `icacls <文件>`，
+   **别用 `Get-Acl` 拼字符串**（本轮拼出来是空串，两侧都空时 `-eq` 回 `True`，是假绿）。
+7. **「某处没有副本」这种断言必须靠枚举目录证明，不能靠"我在别处没见过"**：
+   我在本报告里写过「App 目录里没有 alpha 副本」，实际 `D:\Clash Verge\verge-mihomo-alpha.exe` 一直在
+   （61,300,224 B / mtime 与被删那份完全一致）—— 我当时只查了 `config\` 和 AppData，没查 App 根目录就下了结论。
+   正确做法：按**文件名 + 尺寸 + mtime** 全盘具名搜一遍再判，见本条「补回 alpha」小节。
+
+## 补回 alpha 内核（2026-11-04 追加，同一轮的第二处损害已修复）
+
+被卸载程序删掉的 `cores\verge-mihomo-alpha.exe` 找到了母本并放回，四项对齐全部实测：
+
+```powershell
+# 提权执行；先确认目标不存在，避免覆盖
+Copy-Item 'D:\Clash Verge\verge-mihomo-alpha.exe' `
+          'C:\ProgramData\clash-verge-service\cores\verge-mihomo-alpha.exe'
+```
+
+| 判据 | 母本 | 放回后 |
+|---|---|---|
+| 尺寸 | 61,300,224 B | 61,300,224 B ✅ |
+| mtime | 2026-10-30 17:43:54 | 2026-10-30 17:43:54 ✅（`Copy-Item` 保留） |
+| SHA256 | `1404A25B…27C9` | `1404A25B…27C9` ✅ |
+| ACL（`icacls`） | `SYSTEM:(I)(F)` + `Administrators:(I)(F)` | 同 ✅ |
+
+放回后 `cores\` 两份内核齐（`verge-mihomo.exe` 61,271,040 B / 10-22，`-alpha` 61,300,224 B / 10-30），
+且**没有影响正在跑的内核**：`verge-mihomo` PID 29088 仍由服务 PID 44652 托管、7897 仍由它监听、
+`verge.yaml` 选定仍是 `clash_core: verge-mihomo`。
+因为选定内核没变，**不需要重启 Verge**；App 打开内核页时是实时列目录的。
+
+## 适用范围与不适用范围
+
+- 适用：所有「服务/守护进程托管工作进程 + App 会自更新」的桌面软件
+  （Clash Verge、各类代理客户端、带 service 的同步盘、授权/许可服务）
+- 不适用：纯 GUI 自包含进程；服务只做辅助不参与核心的场景
+- 例外：如果 App 有「服务模式」开关或横幅上的「修复」按钮，**优先走它自己的路径**，
+  它会用正确版本补齐内核；手工复制是我在拿不到该按钮时的等价替代
+
+## 剩余风险
+
+- 我这次补进去的内核来自 App 自带份；若该软件日后改成用哈希清单做核准（而非按文件对齐），
+  手工复制可能再次被判不匹配 —— 届时应改用 App 自身的内核安装入口。
+- ~~`verge-mihomo-alpha.exe` 无副本需用户自行重下~~ **已更正**：母本一直在 `D:\Clash Verge\` 下，
+  我当时未枚举 App 根目录就断言「没有副本」。现已按尺寸/mtime/SHA256/ACL 四项对齐放回，见「补回 alpha 内核」小节。
+- **未证实**：放回 alpha 后没有在界面上切到 alpha 内核跑一遍（选定内核仍是 `verge-mihomo`，
+  切内核会再造成一次中断）。所以「alpha 能被服务成功拉起」这一条只有文件层证据，没有运行层证据。
+
+## 补充：2026-11-13 适用性复核（Clash Verge 已卸载）
+
+- `D:\Clash Verge\clash-verge.exe` 已不存在；`Get-Service *clash*` 无任何服务 ⇒ `clash-verge-service` / `clash_verge_service` 两种拼写都已不存在，记录间的拼写分歧就此失去意义。
+- 现役代理为 **FlClash**（`D:\FlClash\FlClash.exe` + `FlClashCore.exe`，监听 7890，HKCU Run\FlClash 自启在位）；见 [[规则-代理软件关闭前必须先关系统代理]] 的 FlClash 补充节。
+- `C:\ProgramData\clash-verge-service\` 残留目录：**2026-11-13 已查清并删除**（用户拍板「查清楚，然后删了」）。提权完整枚举：**30 文件 / 9 目录 / 206,815,841 B ≈ 197MB**，ACL 属主 SYSTEM。**再更正**：本条早先写的「61MB 内核 `cores\verge-mihomo.exe` 早在之前 uninstall 时被删」被新鲜枚举证伪——**两个内核当时都在**：`cores\verge-mihomo.exe` 61,271,040B（mtime 2026-10-22）+ `cores\verge-mihomo-alpha.exe` 61,300,224B（mtime 2026-10-30 17:43，与上文「补回 alpha 内核」操作时间吻合）；其余为服务 exe 3.4MB、4 个 10MB 级服务日志、geo 数据库（ASN/Country.mmdb、geoip/GeoSite.dat ≈37MB）、用户态 config/日志/状态文件。文件 mtime 显示服务直到 **2026-11-11 14:14** 仍在活动，之后卸载留下残留。删除前两轮引用排查（非管理员预检 + 提权权威复查）全 NONE：服务 PathName / 目录内进程 ExecutablePath / verge·mihomo 进程名 / 计划任务 / Run·RunOnce 键；现役 FlClash 双进程路径均 `D:\FlClash\`，不在删除范围。逐文件删除 30×DEL OK + 9 目录 + 根 OK，删后 `Get-Item` 抛 **ItemNotFoundException**（管理员视角=真没了，非「拒绝访问」假象）；FlClash 双进程与 7890 真实 TCP 握手删除前后均 True，`git ls-remote`（GitCode 真实 remote、直连）rc=0。完整清单与逐文件证据：`G:\AIrenwu\clash-cleanup-result.log`；脚本 `clash-cleanup-precheck.ps1` / `clash-cleanup-worker.ps1` / `run-clash-cleanup.ps1`（已入 ai-renwu 仓库）。历史误判链保留作教训：非管理员枚举被 ACL 拒 + `-ErrorAction SilentlyContinue` 吞拒绝 → 误写「空壳 0 文件」→「0 文件才删」护栏拦下 → 提权枚举 30 文件 → 用户拍板后查清删除。`Get-Process *clash*` 会误匹配 FlClash/FlClashCore（判 Verge 存活用 `*verge*`/`*mihomo*`）。
+- 本记录的服务模式判据、二进制四项对比、「卸载器删内核」结论仅适用于 Clash Verge 存续期间；方法论（判服务模式看父进程、换二进制先比哈希、警惕卸载器删内核）可迁移到任何带服务模式的代理软件。
+
+## 关联
+
+- 相关记录：[[踩坑-无权限读ProgramData被当成文件不存在致误删服务拆掉内核]]（本条的上游事故）、
+  [[踩坑-Stop-Service默认确认提示在隐藏提权控制台里把脚本卡死]]（本条修复过程中撞到的第二个坑）、
+  [[规则-代理软件关闭前必须先关系统代理]]
+- 相关分类：03-通用/03-调试与验证
+- 本机产物：`G:\AIrenwu\01_任务归档\2026-11-03_后台进程盘点\02_证据日志\修复clash服务2-服务模式降级.txt`、
+  同目录 `verge-service-bak\` / `verge-service-bak2\`（被替换掉的旧服务二进制）

@@ -9,7 +9,7 @@ $ErrorActionPreference = 'SilentlyContinue'
 $Base = Split-Path -Parent $PSScriptRoot
 if (-not (Test-Path -LiteralPath (Join-Path $Base '02_证据日志'))) { $Base = $PSScriptRoot }
 $OutDir = Join-Path $Base '02_证据日志'
-if (-not (Test-Path -LiteralPath $OutDir)) { $OutDir = Join-Path $env:TEMP 'dsh-cleanup-logs' }
+if (-not (Test-Path -LiteralPath $OutDir)) { $OutDir = $Base }
 New-Item -ItemType Directory -Force -Path $OutDir | Out-Null
 
 if (-not $DryRun -and -not $Apply) { $DryRun = $true }

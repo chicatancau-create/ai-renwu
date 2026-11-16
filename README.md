@@ -8,7 +8,7 @@ G:\AIrenwu（AI 任务工作区）的版本化备份，**双平台私有仓库**
 
 ## 根目录大纲（2026-11-15 第二轮归类后，长期规矩）
 
-**根目录只允许下列 6 类文件夹 + 本 README + .gitignore，不散放任何文件、任何新文件夹。**
+**根目录只允许下列 7 类文件夹 + 本 README + .gitignore，不散放任何文件、任何新文件夹。**
 
 | 目录 | 放什么 |
 |---|---|
@@ -18,6 +18,12 @@ G:\AIrenwu（AI 任务工作区）的版本化备份，**双平台私有仓库**
 | `04_磁盘与系统/` | `磁盘整理/` `磁盘占用体检/` 等磁盘/系统级盘点 |
 | `05_取证扫描/` | `_scan/` 与并行会话的取证/探针散件 |
 | `脚本库/` | 可复用脚本与提交信息，按用途分类（见下方索引） |
+| `本地AI使用手册/` | 本地 AI 知识库（踩坑记录 / 规则 / 模板），233 文件 / 1.18 MB，**已纳入版本管理** |
+
+> **`本地AI使用手册/` 2026-11-16 从 `E:\本地AI使用手册` 迁入工作区根目录**（E 盘当时在做 ACL 修复，
+> 不少会话写不进去；原目录已被移走、`E:\本地AI使用手册` 已不存在）。迁入后它成为工作区第 7 类顶层目录，
+> 并由 `.gitignore` 显式放行、随本仓库双推备份。**新记录一律写到 `G:\AIrenwu\本地AI使用手册\`，
+> 不要再往 E 盘写**；旧文档里出现的 `E:\本地AI使用手册` 路径按本行理解。
 
 > **`02_项目代码/KaihongOS/` 目前未建**：KaihongOS 的安装镜像与 QEMU/VMware 使用文档存放在
 > `H:\下载\KaihongOS桌面版（x86）6.1试用版安装镜像包\`（2026-11-15 从回收站抢救还原），属资料、不入库；将来有代码再建目录。
@@ -37,11 +43,12 @@ G:\AIrenwu（AI 任务工作区）的版本化备份，**双平台私有仓库**
 `脚本库/` + `02_项目代码/` 下四个工具目录。新增任务目录/隐私目录默认不入库；根目录散脚本也不再放行（逼着归类）。
 
 **纳入的工具目录**：`02_项目代码/vslang-probe/`、`02_项目代码/preview-fixture/`、
-`02_项目代码/dsh-preset-switcher/`、`02_项目代码/gemini-pack/`（仅构建脚本，排除三个大快照 .md）。
+`02_项目代码/dsh-preset-switcher/`、`02_项目代码/gemini-pack/`（仅构建脚本，排除三个大快照 .md）、
+`本地AI使用手册/`（2026-11-16 迁入，已密钥扫描干净后放行）。
 
 **排除**：`.memsearch/` `.workbuddy*/` `.agent-teams/`（隐私/应用状态）、`01_任务归档/`（历史任务）、
 `03_备份/`、`02_项目代码/KaihongOS/`、`02_项目代码/gemini-pack/0[012]-*.md`（派生快照）、
-`*.log`（运行日志，结论已沉淀进 E:\本地AI使用手册）。
+`*.log`（运行日志，结论已沉淀进 `本地AI使用手册/`）。
 
 ## 脚本索引（按用途，均在 `脚本库/` 下）
 
@@ -110,8 +117,8 @@ G:\AIrenwu（AI 任务工作区）的版本化备份，**双平台私有仓库**
 判据正负对照已在本机临时夹具上跑过）、
 `agent_artifacts.py`（各 AI Agent 与工具产物点位：大小 / 文件数 / 静默天数 / 档位「安全·需确认·禁区」，**只报告不删除**；
 本机 `DisableLastAccess=1` 所以只看 mtime）
-经验记录在手册：`E:\本地AI使用手册\03-通用\03-调试与验证\踩坑-电源计划被驱动更新工具复制成同名方案且FriendlyName是REG_EXPAND_SZ.md`、
-`E:\本地AI使用手册\03-通用\04-工程规范与安全\踩坑-回退备份与取证放TEMP会被更新重启清空且日志会滚存.md`
+经验记录在手册：`本地AI使用手册\03-通用\03-调试与验证\踩坑-电源计划被驱动更新工具复制成同名方案且FriendlyName是REG_EXPAND_SZ.md`、
+`本地AI使用手册\03-通用\04-工程规范与安全\踩坑-回退备份与取证放TEMP会被更新重启清空且日志会滚存.md`
 
 ### 10_清理与空间回收 — 回收站 / 临时文件 / 系统日志
 `cleanup_round2.ps1`（五段式清理：各盘空间快照 → 回收站（`Clear-RecycleBin` + 直接删 `$RECYCLE.BIN` 残渣，留目录壳）→
@@ -121,12 +128,21 @@ G:\AIrenwu（AI 任务工作区）的版本化备份，**双平台私有仓库**
 `survey_junk.ps1`（盘点回收站 / 各垃圾候选 / 各盘现状）、
 `inspect_recycle.ps1`（回收站按扩展名、按盘、最大文件、月份分布统计）、
 `read_recycle_meta.ps1`（解析 `$I` 元数据还原原始路径：v2 偏移 8=原始大小、24=路径长度、28 起 UTF-16LE）、
-`archive_recycle_list.ps1`（**删前存档**：回收站完整清单写成 CSV，删后仍可追溯删了什么）、
+`archive_recycle_list.ps1`（**删前存档**：回收站完整清单写成 CSV，删后仍可追溯删了什么；**带 `-Tag` 参数防覆盖历史存档**，
+如 `-Tag 20261116_r3` → `回收站清单_删除前_20261116_r3.csv`）、
 `analyze_recycle_authored.ps1`（按顶层目录聚合来源，判定哪些可能是用户原创内容、需人工过闸）、
-`restore_selected.ps1`（按「原始路径前缀 → 目标根」规则表定向还原，命中后逐个数文件数与字节数校验）
+`restore_selected.ps1`（按「原始路径前缀 → 目标根」规则表定向还原，命中后逐个数文件数与字节数校验）、
+`system_cleanup_worker.ps1` + `run-system-cleanup.cmd`（**需管理员**的三个系统目录清理：`Windows\Logs` 只删
+`.log/.etl/.txt/.cab/.old`、`SoftwareDistribution\Download` 先停 `wuauserv` 再删后重启、`C:\$SysReset`、`MEMORY.DMP`；
+`.cmd` 用 `fltmc` 判管理员 + 自我提权护栏 + `choice` 取消档最大数最先判；**默认菜单 [1] 仅盘点**，[2] 才真删；
+`Windows\Logs` 里没有 `.evtx`，实测 237 文件 = `.etl` 202 + `.log` 19 + `.json` 11 + `.xml` 5，故只命中 221 个）
 实测与判据（2026-11-15）：回收站 52,956 文件 / 21.22 GB 一次清空，全盘合计 +22.42 GB；
 `C:\Windows\Logs`、`C:\$SysReset`、`SoftwareDistribution\Download` **非管理员删不掉**，按判据纪律记「失败」不记「已清理」；
 还原**目录**必须 `robocopy /E`——`Copy-Item` 不加 `-Recurse` 只建空壳，且目录 `Length` 为 0 会让大小校验误报 PASS。
+实测（2026-11-16 第二轮）：回收站又积 8,748 文件 / 2.09 GB → 清空；`%TEMP%` 1,480.8 MB → 73.1 MB；合计 +3.53 GB。
+系统目录仍未清（非管理员），改用 `run-system-cleanup.cmd` 双击提权处理，脚本已 DryRun 验证：`Windows\Logs` 可删 221 个 / 27.3 MB。
+**坑**：`Get-ChildItem -LiteralPath ... -Recurse -Include *.log` 的 `-Include` **不过滤**（PowerShell 已知行为），
+必须改成 `Where-Object { $_.Extension -in '.log', '.etl' }`，否则会连 `.json/.xml` 一起删。
 
 ### 工具项目目录（在 `02_项目代码/` 下）
 - `dsh-preset-switcher/`：DSH 预设切换器插件（client.js / index.js / 测试；.dsh profile 以 link: 引用，node_modules 内为 Junction）
