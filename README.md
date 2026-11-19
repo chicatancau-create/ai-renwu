@@ -18,7 +18,10 @@ G:\AIrenwu（AI 任务工作区）的版本化备份，**双平台私有仓库**
 | `04_磁盘与系统/` | `磁盘整理/` `磁盘占用体检/` 等磁盘/系统级盘点 |
 | `05_取证扫描/` | `_scan/` 与并行会话的取证/探针散件 |
 | `脚本库/` | 可复用脚本与提交信息，按用途分类（见下方索引） |
-| `本地AI使用手册/` | 本地 AI 知识库（踩坑记录 / 规则 / 模板），237 文件 / 1.21 MB，**已纳入版本管理** |
+| `本地AI使用手册/` | 本地 AI 知识库（踩坑记录 / 规则 / 模板），245 文件 / 1.3 MB，**已纳入版本管理** |
+
+**分类导航**（每类目录都有自己的 README 索引，2026-11-19 补齐）：
+`01_任务归档\README.md`（50 任务索引）· `02_项目代码\README.md`（4 项目）· `03_备份\README.md`（6 套备份+危险 Junction 警告）· `04_磁盘与系统\README.md` · `05_取证扫描\README.md` · 脚本库索引见本文件下方「脚本索引」。
 
 > **`本地AI使用手册/` 2026-11-16 从 `E:\本地AI使用手册` 迁入工作区根目录**（E 盘当时在做 ACL 修复，
 > 不少会话写不进去；原目录已被移走、`E:\本地AI使用手册` 已不存在）。迁入后它成为工作区第 7 类顶层目录，
@@ -47,11 +50,37 @@ G:\AIrenwu（AI 任务工作区）的版本化备份，**双平台私有仓库**
 - **经验↔脚本互链**：本 README 脚本索引 09/10 节已引用手册记录；手册记录的证据路径指向 `01_任务归档\…\02_证据日志`。
 - 联动规则详情：`本地AI使用手册\03-通用\04-工程规范与安全\规则-任务区与手册一体化联动.md`。
 
+## 知识与记忆地图（四库分治，2026-11-19 整理）
+
+工作区融入了「本地 AI 使用手册」和「原 Qoder Agent 的全局记忆」，加上技能库与各应用私有记忆，共 **4 套知识/记忆体系**。它们实体不同、入口不同、触发方式不同、写入纪律不同——**别混为一谈**：
+
+| 库 | 实体位置 | 是什么 | 入口 | 怎么被触发 | 写入纪律 |
+|---|---|---|---|---|---|
+| ① 本地 AI 使用手册 | `G:\AIrenwu\本地AI使用手册`（工作区内，Obsidian，已入库） | 已验证的工程经验/踩坑/规则/模板 | `首页.md` | AGENTS.md 第〇节 + skill-router→`D:\Skills\local-ai-handbook\SKILL.md` 症状表 | 完工回写（已授权）：verified 写分类、needs-review 写 99-收件箱 |
+| ② 全局记忆（原 Qoder Agent） | `D:\Skills\global-memory`（工作区外，125 条，随技能库双远端备份） | 旧 Agent 的全局记忆/用户偏好/任务边界 | `MEMORY.md`（一行一条索引） | AGENTS.md 第〇节之二：动手前先扫索引 | **只追加**新条目+新索引行，不改写/删除已有 |
+| ③ 技能库 | `D:\Skills`（工作区外，53 技能） | 可复用任务技能 | `skill-router\SKILL.md` | 默认只常驻 skill-router+headroom，其余按需读 | 经 skill-router 路由，不直接按名加载 |
+| ④ 应用私有记忆 | `.memsearch\` `.workbuddy\` `.workbuddy-ai\`（工作区内隐藏目录） | 各应用自己的会话记忆 | 应用自管 | 应用内部 | **不搬不动、不手工改**（隐私/应用状态） |
+
+**调用链（任何工程任务）**：动手前 → AGENTS.md 第〇节查手册 + 第〇节之二扫全局记忆索引 → skill-router 判定用哪个技能 → 干活 → 完工回写手册（已授权）。
+- 全局记忆刷新（单向导入 Qoder 新增，no-clobber）：`C:\Users\Admin\.dsh\dsh-runtimes\dsh-primary-runtime\dependencies\python\python.exe -X utf8 D:\Skills\global-memory\sync_from_qoder.py`。
+- 记忆导入与 6 Agent 接线详情：`01_任务归档\2026-11-19_导入Qoder全局记忆\01_报告\导入与接线报告.md`；规则：`本地AI使用手册\03-通用\02-AI协作与提示词\规则-全机AI共享全局记忆存D盘Skills库并接线各Agent.md`。
+- **任务证据**在 `01_任务归档`、**可复用脚本**在 `脚本库`——它们是产出与工具，不是"记忆"，别和上面 4 库混淆。
+
+## 活体依赖与危险点（搬动/删除前必查）
+
+| 对象 | 依赖/危险 | 后果 |
+|---|---|---|
+| `01_任务归档\2026-10-10_桌面核心脚本\03_工具脚本\watch.py` | 计划任务 **WindowCenter** 运行中（`D:\PyCharm\Python\pythonw.exe`） | 移动/删除→窗口居中失效 |
+| `02_项目代码\dsh-preset-switcher` | DSH desktop profile 以 `link:` 引用，node_modules 内 Junction | 移动/改名→预设切换插件失效 |
+| `03_备份\archived-cleanup-20261115\node_modules` | 🔴 Junction 指向活体 `D:\DevCache\.dsh\profiles\desktop\node_modules` | 递归删该备份会**穿透删活体依赖**；须先 `rmdir` 拆链接 |
+| `脚本库\07_机器修复与clash清理\sync-repo.ps1` | 本仓库双推入口，内置 `git add -A` | 多会话并行时会把**别人的未提交改动**卷进提交（见「日常用法」警告） |
+| 根目录 `_t.py` / `_tmp_bundle.js` / `_tmp_openrevo_utf8.txt` | **活跃并行会话**（OpenRevo theme.css 排查）正在写 | 属临时探针，**勿动**；会话结束后由其自行清理 |
+
 ## 仓库设计：白名单 .gitignore
 
 工作区里有大量子目录（历史任务、隐私记忆、应用状态、大备份、含密钥/venv/嵌套仓库的项目），
 **不能整目录全推**。所以 `.gitignore` 用白名单：默认忽略根目录一切，只显式放行
-`脚本库/` + `02_项目代码/` 下四个工具目录 + `本地AI使用手册/`。新增任务目录/隐私目录默认不入库；根目录散脚本也不再放行（逼着归类）。
+`脚本库/` + `02_项目代码/` 下四个工具目录 + `本地AI使用手册/` + **各分类目录的直属 README.md**（01/02/03/04/05 的索引，2026-11-19 加，只放行 README 不放行任务内容）。新增任务目录/隐私目录默认不入库；根目录散脚本也不再放行（逼着归类）。
 
 **纳入的工具目录**：`02_项目代码/vslang-probe/`、`02_项目代码/preview-fixture/`、
 `02_项目代码/dsh-preset-switcher/`、`02_项目代码/gemini-pack/`（仅构建脚本，排除三个大快照 .md）、
@@ -85,21 +114,32 @@ G:\AIrenwu（AI 任务工作区）的版本化备份，**双平台私有仓库**
 | `commit-codeweave.ps1` | CodeWeave 提交 + 推送 |
 | `push-cchud.ps1` | cc-hud 双推 |
 | `push-cw-chunked.ps1` | CodeWeave 67 提交分块推送（大包被重置的解法） |
-| `msg-cw.txt` / `msg-fs-1..5.txt` | 对应提交信息 |
+| `msg-cw.txt` / `msg-fs-1..5.txt` / `msg-20261115-cleanup-scripts.txt` | 对应提交信息 |
 
 ### 03_工作区扫描
-`scan-other-issues.ps1`、`scan-sync-lfs.ps1`、`scan-workspace.ps1` / `scan-workspace2.ps1` / `scan-workspace3.ps1`
+`scan-other-issues.ps1`、`scan-sync-lfs.ps1`、`scan-workspace.ps1` / `scan-workspace2.ps1` / `scan-workspace3.ps1`、
+`audit_skills_quality.py`（D:\Skills 逐技能质量审计：frontmatter/触发词/死路径/搬迁前旧引用，只读）、
+`regen_docs.py`（重生成 D:\Skills\README.md + THIRD_PARTY.md 来源/许可登记，未知来源记 unknown 不臆造）、
+`inventory.py`（全量盘点：树状清单+统计+异常候选+Junction/重复检测；`[ROOT] [OUTDIR]` 参数化，2026-11-19 沉淀）、
+`structure_review.py`（结构审查：浅层树+任务归档四目录合规+手册全树；读 inventory.py 的 filelist.csv，`[OUTDIR]` 参数化，2026-11-19 沉淀）
 
-### 04_规则审计（机器快照）
-`audit-snapshot.ps1`、`audit-probe2.ps1` … `audit-probe8.ps1`
+### 04_规则审计
+`audit-snapshot.ps1`、`audit-probe2.ps1` … `audit-probe8.ps1`（规则审计探针）、
+`audit_all.py`（技能路由+省 token 安装的全量只读体检，11 组 57 项；原在「04_规则审计（机器快照）」，2026-11-19 并入本类消除编号撞车）
 
 ### 05_建仓预检与密钥扫描
 `repo-precheck.ps1`（目录盘点+根部密钥扫描）、`repo-precheck-dirs.ps1`（候选目录扫描）、
-`gemini-pack-classify.ps1`（掩码分类）、`gemini-pack-passcontext.ps1`（掩码上下文）
+`gemini-pack-classify.ps1`（掩码分类）、`gemini-pack-passcontext.ps1`（掩码上下文）、
+`probe_provenance.py`（识别真实来源：licence 文本/clawx 元数据/SKILL.md 上游 URL/cc-switch repo_owner 列，不猜）、
+`probe_qoder_push.py`（推 QoderToolkit 前：licence+密钥扫描+垃圾检测，13k 文件限定文本跳二进制）、
+`scan_handbook_secrets.py`（手册密钥扫描：AWS_AKID/GitHub_PAT/OpenAI_key 等正则）
 
 ### 06_建仓与双推
 `create-github-repo.ps1`（gh 建 GitHub 私有库）、`create_gitcode_repo.py`（GitCode v5 建私有库）、
-`init-and-push.ps1`（init+提交+双推+验证）、`msg-repo.txt`（初始提交信息）
+`init-and-push.ps1`（init+提交+双推+验证）、`msg-repo.txt`（初始提交信息）、
+`fix_byte_fidelity.py`（修 D:\Skills 首次 add 早于 .gitattributes 致 79 文件 CRLF→LF 归一化，按当前属性重暂存使 blob=磁盘字节）、
+`gitcode_push.py`（建 GitCode 镜像库并推送，密钥从 Windows 凭据管理器读不回显；`<repo-name> <local-path> [--create-only]`）、
+`verify_restore.py`（证明备份真可还原：从各远端 clone 到临时目录逐文件 sha256 比对活体库；"push 成功"不算证据，字节一致还原才算）
 
 ### 07_机器修复与clash清理 — 机器修复 / 依赖 / 手册记录移动 / 本仓库同步
 `fix-machine.ps1`、`install-flask.ps1`、`move-sandbox.ps1`、`move-vslang.ps1`、
@@ -114,7 +154,11 @@ G:\AIrenwu（AI 任务工作区）的版本化备份，**双平台私有仓库**
 `diag-github-push.ps1`（GitHub 推送失败分层诊断：7890 真实握手 / 监听条目**不加 State 过滤** / 进程身份 / git 与系统代理 / 最小真实请求 / ls-remote；只用纯 fetch，绝不 `push --dry-run`）、
 `try-direct-github.ps1`（直连判别 + per-command 出口覆盖完成双推 + 双远端比对 + 全局配置回读）、
 `verify-remote-heads.ps1` + `msg-verify-verdict.txt`（**双远端 HEAD 三态校验**，`sync-repo.ps1` 末尾自动调用：有界读取 `http.lowSpeedLimit/lowSpeedTime` + 3 次重试 + 直连回退 + 40 位 hex 校验 + `api.github.com` 交叉核对；判定分 **VERIFIED / UNVERIFIED（读不到，明确不是不一致）/ 真 MISMATCH**，退出码 0/2/1。教训：无界 `ls-remote` 卡 300 秒返回空会误报不一致；PowerShell **函数内 `Write-Output` 会污染返回值**，诊断必须走 `Write-Host`）、
-`msg-final-index.txt`（索引补齐的提交信息）、`msg-egress-fallback.txt`（出口回退轮提交信息）
+`msg-final-index.txt`（索引补齐的提交信息）、`msg-egress-fallback.txt`（出口回退轮提交信息）、
+`restore_from_bin.py`（解析回收站 $I 元数据证明删了什么/何时/从哪，还原技能库/默认窗口所属文件）、
+`search_recycle.py`（在回收站搜被清掉的 skill-router/headroom 文件）、
+`who_reverted.py`（追查谁在 02:23:48 回退了 D:\Skills\skill-router\router.py；shutil.copy2 保留 mtime，镜像还原是头号嫌疑）、
+`msg-organize-20261115.txt` / `msg-organize2-20261115.txt` / `msg-session-cleanup.txt`（归类/会话清理轮提交信息）
 
 ### 08_实验与预览 — 实验 / 预览测试
 `vslang-probe.ps1` + `02_项目代码/vslang-probe/`（VSLANG A/B 实验夹具与日志）、
@@ -146,7 +190,8 @@ G:\AIrenwu（AI 任务工作区）的版本化备份，**双平台私有仓库**
 `system_cleanup_worker.ps1` + `run-system-cleanup.cmd`（**需管理员**的三个系统目录清理：`Windows\Logs` 只删
 `.log/.etl/.txt/.cab/.old`、`SoftwareDistribution\Download` 先停 `wuauserv` 再删后重启、`C:\$SysReset`、`MEMORY.DMP`；
 `.cmd` 用 `fltmc` 判管理员 + 自我提权护栏 + `choice` 取消档最大数最先判；**默认菜单 [1] 仅盘点**，[2] 才真删；
-`Windows\Logs` 里没有 `.evtx`，实测 237 文件 = `.etl` 202 + `.log` 19 + `.json` 11 + `.xml` 5，故只命中 221 个）
+`Windows\Logs` 里没有 `.evtx`，实测 237 文件 = `.etl` 202 + `.log` 19 + `.json` 11 + `.xml` 5，故只命中 221 个）、
+`msg-archive-round3.txt` / `msg-handbook-include.txt`（第三轮归档/手册纳入轮提交信息）
 实测与判据（2026-11-15）：回收站 52,956 文件 / 21.22 GB 一次清空，全盘合计 +22.42 GB；
 `C:\Windows\Logs`、`C:\$SysReset`、`SoftwareDistribution\Download` **非管理员删不掉**，按判据纪律记「失败」不记「已清理」；
 还原**目录**必须 `robocopy /E`——`Copy-Item` 不加 `-Recurse` 只建空壳，且目录 `Length` 为 0 会让大小校验误报 PASS。
@@ -161,15 +206,22 @@ G:\AIrenwu（AI 任务工作区）的版本化备份，**双平台私有仓库**
 
 ## 日常用法
 
+> ⚠ **多会话并行警告（2026-11-19）**：`sync-repo.ps1` 内置 `git add -A`，会把**其它会话尚未提交的手册改动**一起卷进提交。
+> 多会话共用同一 git 索引时，**改用显式路径暂存**：`git add <只属本会话的路径>` → `git diff --cached --name-only` 核对只含自己的文件 →
+> `git commit -F <提交信息>` → `git push gitcode main` + `git push origin main`（失败按 sync-repo 的 per-command 直连回退）→ 跑 `verify-remote-heads.ps1` 校验。
+> 单会话、无他人未提交改动时才可直接用 sync-repo.ps1。
+
 ```powershell
-# 新脚本放进 脚本库/<分类>/ 后，用通用同步脚本提交+双推+校验：
+# 单会话时：新脚本放进 脚本库/<分类>/ 后，用通用同步脚本提交+双推+校验：
 powershell -NoProfile -ExecutionPolicy Bypass -File G:\AIrenwu\脚本库\07_机器修复与clash清理\sync-repo.ps1 -MsgFile <提交信息文件路径>
-# 或手动：
-git add -A
-git commit -m "说明"
+# 多会话时手动（显式路径，勿 add -A）：
+git add <本会话的文件路径>
+git commit -F <提交信息文件>
 git push gitcode main   # 国内直连
-git push origin main    # GitHub，走本机 7890 出口（git 全局已配代理；失败时 sync-repo 自动直连回退）
+git push origin main    # GitHub，走本机 7890 出口（git 全局已配代理；失败时 per-command 直连回退）
 ```
 
-> 注：本机 `D:\PyCharm\Python\python.exe` 的 console exe 于 2026-11-13 发现消失，
-> 运行 .py 可改用 uv 的 `C:\Users\Admin\AppData\Roaming\uv\python\cpython-3.12.13-windows-x86_64-none\python.exe`。
+> **Python 解释器**：正主用 DSH 运行时 `C:\Users\Admin\.dsh\dsh-runtimes\dsh-primary-runtime\dependencies\python\python.exe -X utf8`（含 numpy/pandas 等）。
+> 本机 `D:\PyCharm\Python\python.exe` 的 console exe 于 2026-11-13 发现消失（`pythonw.exe` 仍在，WindowCenter 用它）；
+> 备选 uv 的 `C:\Users\Admin\AppData\Roaming\uv\python\cpython-3.12.13-windows-x86_64-none\python.exe`。`python3` 是坏存根，勿用。
+> `.ps1` 必须 UTF-8 BOM+CRLF、`.cmd/.bat` GBK 无 BOM（PS5.1 否则按 GBK 解析报错）。
