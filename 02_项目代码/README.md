@@ -13,7 +13,7 @@
 | dsh-preset-switcher ⚠ | DSH 插件：在已开始的会话里切换智能体预设（模式）。`@local/dsh-preset-switcher` v1.0.0 | package.json（exports index.js/client.js/locale/icon；dsh.bundle.patch=cordis.patch.yml；client web immediately） | 活体，被 desktop profile link: 引用 |
 | gemini-pack | Gemini 双仓库数据包构建器 | `_build_pack.py`（构建入口）；00/01/02-*.md 为派生快照（gitignore 排除） | 工具 |
 | preview-fixture | ppt-master svg_editor 的预览夹具 | `svg_output\slide_01.svg`；配套 `脚本库\08_实验与预览\preview-fixture-test.ps1`（端口 8765，server 在 D:\QoderToolkit\ppt-master\scripts\svg_editor\server.py） | 夹具；测试脚本解释器 D:\PyCharm\Python\python.exe 已消失，下次用需换解释器 |
-| vslang-probe | VSLANG 1033 是否把 MSVC 诊断切成英文的 A/B 实验 | bad.cpp / varA.bat / varB.bat / logA.txt / logB.txt | 实验夹具；结论见手册「踩坑-VSLANG1033…」 |
+| vslang-probe | VSLANG 1033 是否把 MSVC 诊断切成英文的 A/B 实验 | bad.cpp / varA.bat / varB.bat / logA.txt / logB.txt | 实验夹具；结论见手册 `03-通用\03-调试与验证\踩坑-VSLANG1033未把MSVC诊断切成英文.md` |
 
 ## 备注
 - KaihongOS 项目**尚未建**：安装镜像在 `H:\下载\KaihongOS桌面版（x86）6.1试用版安装镜像包\`，需要时再立项。

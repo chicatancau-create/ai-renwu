@@ -74,7 +74,7 @@ G:\AIrenwu（AI 任务工作区）的版本化备份，**双平台私有仓库**
 | `02_项目代码\dsh-preset-switcher` | DSH desktop profile 以 `link:` 引用，node_modules 内 Junction | 移动/改名→预设切换插件失效 |
 | `03_备份\archived-cleanup-20261115\node_modules` | 🔴 Junction 指向活体 `D:\DevCache\.dsh\profiles\desktop\node_modules` | 递归删该备份会**穿透删活体依赖**；须先 `rmdir` 拆链接 |
 | `脚本库\07_机器修复与clash清理\sync-repo.ps1` | 本仓库双推入口，内置 `git add -A` | 多会话并行时会把**别人的未提交改动**卷进提交（见「日常用法」警告） |
-| 根目录 `_t.py` / `_tmp_bundle.js` / `_tmp_openrevo_utf8.txt` | **活跃并行会话**（OpenRevo theme.css 排查）正在写 | 属临时探针，**勿动**；会话结束后由其自行清理 |
+| 根目录临时探针散件（`_*.py` / `_tmp_*` / 并行会话临时文件夹等） | **活跃并行会话**（如 OpenRevo theme.css 排查）正在写 | 属临时探针，**勿动**；会话结束后由其自行清理归位 |
 
 ## 仓库设计：白名单 .gitignore
 
