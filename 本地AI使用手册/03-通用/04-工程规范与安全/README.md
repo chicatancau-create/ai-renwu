@@ -38,3 +38,5 @@
 - [[规则-本机管理员提权可静默完成不要推给用户]]（verified，2026-11-16，severity high）— **`IsInRole(Administrator)=False` 只说明当前令牌没提权，推不出"这台机器提不了权"**：本机 `ConsentPromptBehaviorAdmin=0` 且账户在 Administrators 组内，`Start-Process -Verb RunAs -PassThru -WindowStyle Hidden` 可**静默提权**（实测 `admin=True`、无弹窗，真删 `C:\Windows\Logs` 237→185）；`-Verb RunAs` 不支持重定向 stdout，子进程结果让它自己写日志再读；交付物里不许出现"请你双击/请你找这个文件"
 - [[规则-任务区与手册一体化联动]]（verified，2026-11-16）— 手册由 E 盘迁入 `G:\AIrenwu\本地AI使用手册` 成为根第 7 类；任务区 README↔手册首页/README 双向入口互链；回写按用户 2026-10-13 授权自动执行（旧「先确认再写 E 盘」作废）；`~/.dsh/AGENTS.md` 第〇节曾缺失已重建（≡`D:\DevCache\.dsh\AGENTS.md`）；技能经 skill-router 按需读，旧 handbook_search.py 已废弃；活文档改新路径、历史证据保留旧路径
 - [[规则-工作区分类索引层与四库知识地图]]（verified，2026-11-19）— 7 类大纲上加分类直属 README 索引层（.gitignore 三段式只放行 README）+ 根 README 四库知识地图（手册/全局记忆/技能库/应用私有）；附新 pwsh git 身份为空 commit 128 的 per-command -c 修法与多会话显式路径提交判据
+
+- `规则-清理git污染勿删白名单外真实未跟踪工作目录.md`：污染判定用 diff additions、untracked 不动（2026-11-26 误删事故教训）。
