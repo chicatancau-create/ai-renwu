@@ -1,0 +1,35 @@
+- [x] 格式化或静态检查：`python -m py_compile migrate_guard.py notify.py` 退出码 0
+- [x] 类型检查或编译：不涉及
+- [x] 单元、集成或端到端测试：
+  - 修后跑 `migrate_guard.py` → 退出码 0，日志 `正常 25 个 / 自动修复 0 个 / 待处理 0 个`
+  - 干跑 `DSH_GUARD_NO_LAUNCH=1 cmd /c start_dsh.bat` → 退出码 0，`last_launch.log` 末行 `=== done: migrate=0 kernel=0 ===`，内核对齐 `[OK] overrides 11 项与 node_modules 实装全部对齐`
+  - 隐藏启动实测：临时 vbs（同一 `sh.Run ...,0,False` 机制，设 `DSH_GUARD_NO_LAUNCH=1`）→ 运行中枚举 cmd/powershell，`MainWindowHandle` 全为 0（无可见控制台窗口），日志确有新条目写入，`DeepSeek Harness` 进程数 8→8（没有误启第二个实例）
+  - 冗余自愈对照实验：造 `C:\Users\Admin\guard-heal-test.__guard_bak`（`a.txt`、`sub\b.txt`）与 `D:\DevCache\guard-heal-test` 同名同内容 → 守卫退出码 1，日志 `[清理] guard-heal-test.__guard_bak: 内容与 D:\DevCache\guard-heal-test 完全一致，删除遗留目录`，目录被清掉
+  - 反向对照：同样造中间态但 D 盘缺文件（首次测试数据造错）→ 守卫正确报 `[需处理]` + 退出码 2，未误删
+- [x] 构建：不涉及
+- [x] 启动或手动回归：DSH 本体仍在运行未重启；启动链路的隐藏窗口机制已用等价手段实测（见上）
+
+## 可复用规则
+
+1. 启动守卫、体检脚本一律不得用 `pause` / `ReadKey` 阻塞启动。无控制台场景改成「退出码 + 中文消息框」，并且只在必须人工处理时才弹
+2. 要让 App 无窗口启动：写一个 `wscript` 的 vbs，内部 `WScript.Shell.Run "<bat>", 0, False`；快捷方式指向 `wscript.exe`，`WindowStyle` 设 7。副作用是 bat 的输出全丢，所以必须重定向到日志文件
+3. 修复类脚本删除临时备份目录时要「重试 + 兜底挪走」；直接用 `shutil.rmtree(..., ignore_errors=True)` 会把删不掉的目录留给下次启动，被自己的遗留物扫描判成「待人工确认」，形成天天弹框
+4. 判定中间态目录（`.__guard_bak` / `.__moving`）是否冗余，判据是「相对路径 + 大小 + 小文件 SHA256 全覆盖」，不是「目标目录存在」
+5. 验证「真的没窗口」的等价手段：运行中用 `Get-Process cmd,powershell | Select MainWindowHandle`，全 0 即无可见控制台
+
+## 适用范围与不适用范围
+
+- 适用：Windows 上任何用 bat 做前置检查再拉起 GUI 程序的启动器；任何「脚本修完顺手删备份」的自愈逻辑
+- 不适用：不经过 bat 的启动方式（直接双击 `DeepSeek Harness.exe`、旧的直接指向 exe 的任务栏固定项）不会触发守卫，也就与本文无关；macOS / Linux 无对应机制
+
+## 剩余风险
+
+- 用户若绕过开始菜单、直接双击 exe 启动，守卫不生效（缓存联接检查、内核版本对齐都不会跑）
+- `.headroom` 仍是 C 盘实体目录（0.01 GB），日志每次会留一行「尚未迁移，不影响使用」的提示，不影响启动也不弹窗
+- `taskbar` 若存在指向旧 `start_dsh.bat` 的固定项会重新出现黑框；已核查本机开始菜单/桌面上只有一条指向 vbs 的快捷方式
+
+## 关联
+
+- 相关记录：`G:\AIrenwu\本地AI使用手册\99-收件箱\踩坑-临时脚本按环境变量推导清理目录误删C盘用户目录junction.md`（`.local` 回流的来源）、`G:\AIrenwu\本地AI使用手册\03-通用\03-调试与验证\规则-宿主自更新时钉版要用启动守卫按宿主自带版本自动对齐.md`（同一个守卫的内核对齐职责）、`G:\AIrenwu\本地AI使用手册\03-通用\04-工程规范与安全\踩坑-删联接目录会跟随联接回收真源须靠回收站元数据取证.md`
+- 相关分类：`G:\AIrenwu\本地AI使用手册\03-通用\03-调试与验证`
+- 相关代码、命令或文档：`D:\DSH-Guard\start_dsh.bat`、`D:\DSH-Guard\start_dsh_silent.vbs`、`D:\DSH-Guard\notify.py`、`D:\DSH-Guard\migrate_guard.py`、`D:\DSH-Guard\dsh_kernel_sync.py`、`D:\DSH-Guard\last_launch.log`、备份目录 `D:\DSH-Guard\_maintenance\_backup\20261120-1510`

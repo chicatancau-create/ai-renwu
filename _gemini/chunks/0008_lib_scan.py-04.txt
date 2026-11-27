@@ -1,0 +1,85 @@
+                wb.append((os.path.relpath(fp, ROOT), os.path.getsize(fp)))
+    D["workbuddy_files"] = wb
+
+    # ---- 06/07 同地性 ----
+    colo = {}
+    for d in ("06-实验代码", "07-项目实现"):
+        base = os.path.join(ROOT, d)
+        units = []
+        if os.path.isdir(base):
+            for sub in sorted(os.listdir(base)):
+                sp = os.path.join(base, sub)
+                if os.path.isdir(sp):
+                    m = sum(1 for r, _, _ in files if r.startswith(d + os.sep + sub + os.sep) and r.endswith(".md"))
+                    c = sum(1 for r, _, e in files if r.startswith(d + os.sep + sub + os.sep) and e in CODE_EXTS)
+                    units.append((sub, m, c))
+        chosen = None
+        for sub, m, c in units:
+            if m > 0 and c > 0:
+                chosen = sub; break
+        if chosen is None and units:
+            chosen = units[0][0]
+        flist = []
+        if chosen:
+            cp = os.path.join(base, chosen)
+            for dp, dn, fn in os.walk(cp, onerror=onerror):
+                dn[:] = sorted(x for x in dn if x not in EXCLUDE_DIRS)
+                for f in sorted(fn):
+                    fp = os.path.join(dp, f)
+                    flist.append((os.path.relpath(fp, base), os.path.getsize(fp)))
+                    if len(flist) >= 40:
+                        break
+                if len(flist) >= 40:
+                    break
+        colo[d] = {"units": units, "chosen": chosen, "files": flist}
+    D["colocation"] = colo
+
+    # ---- 08 题型样本 ----
+    qsample = None
+    qdir = os.path.join(ROOT, "08-判定题库")
+    if os.path.isdir(qdir):
+        cands = sorted(r for r in md_by_dir.get("08-判定题库", [])
+                       if not re.search(r"(README|索引|总览|说明)", os.path.basename(r), re.I))
+        if cands:
+            qsample = {"path": cands[0], "head": head_lines(read_text(os.path.join(ROOT, cands[0])), 40)}
+    D["question_sample"] = qsample
+
+    # ---- 根文档 / 交接 ----
+    D["readme"] = read_text(os.path.join(ROOT, "README.md"))
+    D["p07_readme"] = read_text(os.path.join(ROOT, "07-项目实现", "README.md"))
+    D["list_02"] = sorted(md_by_dir.get("02-项目实战", []))
+    D["list_07"] = sorted(md_by_dir.get("07-项目实现", []))
+    D["list_01_root"] = sorted(r for r in md_by_dir.get("01-阶段课程", []) if r.count(os.sep) == 1)
+    ov = read_text(os.path.join(ROOT, "000-学习总览.md"))
+    D["overview_full"] = ov
+    D["overview_lines"] = len(ov.splitlines()) if ov else 0
+    D["gitignore"] = read_text(os.path.join(ROOT, ".gitignore"))
+    hand_p = os.path.join(ROOT, "04-资源与评估", "交接-下一个AI-2026-11-08.md")
+    D["handover"] = {"path": os.path.relpath(hand_p, ROOT),
+                     "head": head_lines(read_text(hand_p), 120)} if os.path.isfile(hand_p) else None
+
+    # ---- git ----
+    head = read_text(os.path.join(ROOT, ".git", "HEAD")) or ""
+    branch = head.strip().replace("ref: refs/heads/", "") if head.startswith("ref:") else "(detached)"
+    D["branch"] = branch
+    refp = os.path.join(ROOT, ".git", "refs", "heads", *branch.split("/"))
+    D["branch_sha"] = (read_text(refp) or "").strip() or None
+    cfg = read_text(os.path.join(ROOT, ".git", "config")) or ""
+    D["git_remotes"] = re.findall(r'\[remote "([^"]+)"\]\s*\n\s*url = (.+)', cfg)
+    D["git_proxy"] = re.findall(r'\[http "([^"]+)"\]\s*\n\s*proxy = (.+)', cfg)
+    commits = None; src = "git log"
+    try:
+        r = subprocess.run(["git", "-C", ROOT, "log", "-3", "--date=iso-strict",
+                            "--pretty=format:%h|%ad|%s"],
+                           capture_output=True, encoding="utf-8", errors="replace", timeout=30)
+        if r.returncode == 0 and r.stdout.strip():
+            commits = [l.split("|", 2) for l in r.stdout.strip().splitlines()]
+    except (OSError, subprocess.TimeoutExpired):
+        pass
+    if commits is None:
+        src = "未确认(git log 不可用)"
+        logp = os.path.join(ROOT, ".git", "logs", "HEAD")
+        txt = read_text(logp)
+        if txt:
+            rows = []
+            for l in txt.splitlines():

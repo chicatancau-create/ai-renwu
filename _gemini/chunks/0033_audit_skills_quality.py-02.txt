@@ -1,0 +1,95 @@
+    for m in re.finditer(r"[A-Za-z]:\\[^\s`'\"<>()\[\]|,;：。，、）]{3,}", text):
+        raw = m.group(0).rstrip("\\.,;:")
+        if raw.startswith(("D:\\Skills", "D:\\QoderToolkit", "D:\\AI-Tool-State")):
+            continue
+        if re.search(r"<|\*|\.\.\.|xxx|YYYY|示例|example", raw, re.I):
+            continue
+        if not os.path.exists(raw):
+            prob.append("DEAD-PATH(%s)" % raw)
+
+    # files inventory
+    files = []
+    for dp, dn, fn in os.walk(p):
+        for d in list(dn):
+            if d in JUNK_DIRS:
+                junk.append(os.path.join(dp, d))
+                dn.remove(d)
+        for f in fn:
+            fp = os.path.join(dp, f)
+            rel = os.path.relpath(fp, p)
+            try:
+                sz = os.path.getsize(fp)
+            except OSError:
+                sz = 0
+            files.append((rel, sz))
+            total_files += 1
+            total_bytes += sz
+            if f in JUNK_NAMES or f.endswith((".pyc", ".pyo", ".swp", "~")):
+                junk.append(fp)
+            if RUNTIME_HINT.search(f) and f not in ("catalog.json",):
+                runtime.append(fp)
+    rec["files"] = len(files)
+    rec["bytes"] = sum(s for _, s in files)
+    rec["has_license"] = any(os.path.basename(f).upper().startswith("LICENSE") for f, _ in files)
+    rec["has_provenance"] = any("PROVENANCE" in f.upper() for f, _ in files)
+
+    h = hashlib.sha256(body.strip().encode("utf-8")).hexdigest()[:16]
+    bodies.setdefault(h, []).append(name)
+    rec["body_sha"] = h
+    rec["problems"] = prob
+    issues.append(rec)
+
+print("\n=== A. per-skill problems ===")
+nprob = 0
+for r in issues:
+    if r["problems"]:
+        nprob += 1
+        print("  %-38s %s" % (r["dir"], "; ".join(r["problems"])))
+print("  skills with problems: %d / %d" % (nprob, len(issues)))
+
+print("\n=== B. duplicate bodies ===")
+dups = {h: v for h, v in bodies.items() if len(v) > 1}
+print("  identical-body groups:", dups if dups else "none")
+
+print("\n=== C. junk files/dirs that should not ship ===")
+for j in sorted(set(junk)):
+    print("  " + j)
+print("  count:", len(set(junk)))
+
+print("\n=== D. runtime artifacts inside skill dirs (README forbids) ===")
+for j in sorted(set(runtime)):
+    print("  " + j)
+print("  count:", len(set(runtime)))
+
+print("\n=== E. third-party skills lacking LICENSE/PROVENANCE ===")
+SELF = {"fs-fullstack", "fs-plan", "fs-scaffold", "fs-frontend", "fs-frontend-ui", "fs-backend",
+        "fs-database", "fs-testing", "fs-security", "fs-code-review", "fs-performance",
+        "fs-deploy", "fs-docs", "vision-tool", "qoder-toolkit", "local-ai-handbook",
+        "windows-gui-control", "xd-authoring", "obsidian-vault-validation", "skill-router",
+        "headroom"}
+for r in issues:
+    if r["dir"] in SELF:
+        continue
+    if not r["has_license"]:
+        print("  %-38s no LICENSE  (provenance=%s)" % (r["dir"], r["has_provenance"]))
+
+print("\n=== F. size ranking (top 12) ===")
+for r in sorted(issues, key=lambda x: -x["bytes"])[:12]:
+    print("  %-38s %8d B  %4d files  desc=%d" % (r["dir"], r["bytes"], r["files"], r["desc_len"]))
+
+print("\n=== G. totals ===")
+print("  skills=%d files=%d bytes=%d (%.2f MB)" % (len(issues), total_files, total_bytes, total_bytes / 1048576))
+
+print("\n=== H. QoderToolkit (second library, also to back up?) ===")
+for name, p, sm in collect(QODER):
+    text = open(sm, encoding="utf-8", errors="replace").read()
+    fm, body = parse_fm(text)
+    fm = fm or {}
+    n = sum(len(f) for _, _, f in os.walk(p))
+    b = sum(os.path.getsize(os.path.join(dp, f)) for dp, _, fs in os.walk(p) for f in fs)
+    print("  %-38s name=%-32s files=%5d bytes=%9d desc=%d" %
+          (name, fm.get("name", "?"), n, b, len(fm.get("description", ""))))
+
+out = r"G:\AIrenwu\_audit\skill_audit.json"
+json.dump(issues, open(out, "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+print("\nwrote", out)

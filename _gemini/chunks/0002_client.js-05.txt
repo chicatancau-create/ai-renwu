@@ -1,0 +1,36 @@
+                    color: refusalIsError
+                      ? prefersDark()
+                        ? '#FFB4B4'
+                        : '#A8071A'
+                      : prefersDark()
+                        ? '#E6E6E6'
+                        : '#1F2329',
+                    fontSize: 13,
+                    lineHeight: '20px',
+                    boxShadow: '0 8px 24px rgba(0, 0, 0, .35)',
+                  },
+                  onClick: () => setRefusal(null),
+                },
+                refusal,
+              )
+
+        return h(
+          'span',
+          { style: { display: 'inline-flex', alignItems: 'center', gap: 6 } },
+          trigger,
+          refusalToast === null ? null : (createPortal !== undefined ? createPortal(refusalToast, document.body) : refusalToast),
+          menu,
+        )
+      }
+
+      ctx.slots.inject('conversation.session.header.actions', () => {
+        return ctx.slots.register({ name: 'conversation.session.header.actions', id: 'agent-preset', order: -10 }, PresetSwitcher)
+      })
+    }
+
+    return {
+      inject: ['slots', 'sessions', 'remote', 'remote.agentPresets'],
+      apply,
+    }
+  },
+})

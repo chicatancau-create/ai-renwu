@@ -1,0 +1,63 @@
+        rc, out, err = run(["powercfg", "-delete", g])
+        left = g in list_guids()
+        print(("已删 " if rc == 0 and not left else "未删 ") + g,
+              "(%s)" % (allowed_names.get(g, "?")), (out + err).strip()[:120])
+        if rc != 0 or left:
+            fail += 1
+    return 1 if fail else 0
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--backup", metavar="DIR")
+    ap.add_argument("--delete", nargs="*")
+    ap.add_argument("--yes", action="store_true", help="配合 --delete 使用，确认已在别处留好方案名清单")
+    args = ap.parse_args()
+
+    guids = list_guids()
+    act = active_guid()
+    names = {g: friendly_name(g) for g in guids}
+    if args.backup:
+        rc = backup(args.backup)
+        if rc:
+            return rc
+    if args.delete:
+        if not args.yes:
+            print("需要 --yes：删除前请确认方案名已留档（powercfg -duplicatescheme 无法还原自定义改名）")
+            return 2
+        return delete(args.delete, names)
+
+    fps = {}
+    for g in guids:
+        fp = fingerprint(g)
+        fps[g] = fp
+    groups = {}
+    for g, fp in fps.items():
+        groups.setdefault(fp, []).append(g)
+
+    print("共 %d 个方案键，当前活动 = %s" % (len(guids), act))
+    print("%-40s %-22s %8s %6s %s" % ("GUID", "名称", "字节指纹", "属性", "判定"))
+    for g in guids:
+        mark = []
+        if g in BUILTIN:
+            mark.append("内建")
+        if g == act:
+            mark.append("活动")
+        if attributes(g) & ATTR_OVERLAY:
+            mark.append("Overlay")
+        dup = groups.get(fps[g], [])
+        verdict = "与 %d 个方案内容完全相同" % (len(dup) - 1) if len(dup) > 1 else "唯一"
+        print("%-40s %-22s %8s %6s %-14s %s" % (g, names[g][:22], fps[g], hex(attributes(g)), "|".join(mark), verdict))
+    dups = {k: v for k, v in groups.items() if len(v) > 1}
+    if dups:
+        print("\n重复组（同组只差名字，可安全留一个）：")
+        for fp, v in dups.items():
+            print("  %s : %s" % (fp, ", ".join("%s(%s)" % (x, names[x]) for x in v)))
+    else:
+        print("\n没有内容重复的方案。")
+    print("\n提示：Driver Booster 每运行一次就会再 import 一份同名方案，重复会复发。")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

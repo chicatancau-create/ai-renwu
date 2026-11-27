@@ -1,0 +1,102 @@
+﻿# -*- coding: utf-8 -*-
+"""生成 02-资料库-快照.md。数据来源: _lib_scan.collect() (只读)。
+评论文字由扫描员基于真实读到的内容撰写; 文档宣称一律标注「宣称/未确认」。
+体积护栏: <=80KB, 超限按 trim 级别砍 6/8 节样本, 保 1/2/3/4/5/7。
+"""
+import os, sys, re, json, datetime, subprocess, collections
+
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import _lib_scan as S
+
+ROOT = S.ROOT
+OUT = r"G:\AIrenwu\02_项目代码\gemini-pack\02-资料库-快照.md"
+LIMIT = 80_000  # 任务「≤80KB」按更严格的 80,000 字节口径执行
+SEP = os.sep
+
+FLAGS = []
+
+def emb(text):
+    if text is None:
+        return None
+    t, fl = S.mask(text)
+    FLAGS.extend(fl)
+    return t
+
+def fence(text, lang=""):
+    body = text if text is not None else "(未读到)"
+    # 动态围栏：内容含 ``` 时用 ```` 包裹，避免嵌套围栏提前闭合（交接文档内有 ```bash）
+    runs = re.findall(r"`{3,}", body)
+    n = max((len(r) for r in runs), default=2) + 1
+    bar = "`" * max(3, n)
+    return bar + lang + "\n" + body + "\n" + bar
+
+def ap(rel):
+    return ROOT + "\\" + rel.replace("/", "\\")
+
+def rehead(text, n):
+    if text is None:
+        return None
+    lines = text.splitlines()
+    if len(lines) <= n:
+        return text
+    return "\n".join(lines[:n]) + "\n…(已截断)"
+
+def tracked_stats():
+    """git ls-files -z: 只读索引, 不改 git 状态。-z 避免中文八进制转义。"""
+    try:
+        r = subprocess.run(["git", "-C", ROOT, "ls-files", "-z"],
+                           capture_output=True, timeout=120)
+        if r.returncode != 0:
+            return None
+        names = [n.decode("utf-8", "replace") for n in r.stdout.split(b"\0") if n]
+        total = 0; md = 0; missing = 0; n05 = 0; wb = 0
+        for n in names:
+            p = os.path.join(ROOT, n.replace("/", SEP))
+            try:
+                total += os.path.getsize(p)
+            except OSError:
+                missing += 1
+            if n.lower().endswith(".md"):
+                md += 1
+            if n.startswith("05-外部资料库/"):
+                n05 += 1
+            if n.startswith(".workbuddy/"):
+                wb += 1
+        return {"count": len(names), "size": total, "md": md, "missing": missing, "n05": n05, "wb": wb}
+    except Exception:
+        return None
+
+SCRIPT_PURPOSE = {
+    "check_student_packages.mjs":
+        "G0–G9 学生包结构门禁：检查十个包齐全（S01），每包必含 README.md、自评指南.md、参考答案/、自测脚本/、起始代码/、"
+        "evidence/judge-solution.txt、evidence/judge-starter.txt；参考答案与自测脚本目录非空；统计 TODO 标记并检查其只出现在起始代码"
+        "（todoOutsideStarter）。引用 06-实验代码/_template/manifest.mjs 作为 manifest 工具。",
+    "verify_all.mjs":
+        "总门禁聚合器：参数 --profile=quick|ci（默认 quick）、--offline、--practice-root= 或环境变量 PRACTICE_ROOT 指定外部练习仓。"
+        "先跑 05-外部资料库/tools/catalog_tool.py validate --mode source-only，再按 PRACTICE_PROJECTS 清单（前 30 行可见 P01=project01-blog、"
+        "P02=project02-collab、B5-01=project02-spring，后续被截断）到外部仓逐项目校验。README/交接文档宣称含两仓秘密扫描；本次未复跑。",
+    "verify_archive.sh":
+        "从两仓 git archive HEAD 的已提交内容复核（解包到临时目录后跑 source-only + 14 个实验 manifest + 8 个外部项目 manifest），"
+        "防止工作区未提交/被忽略文件造成假绿。默认 VAULT_ROOT=/e/OBsidian/全栈工程师学习资料库、PRACTICE_ROOT=/e/fullstack-code。"
+        "含 Windows Git Bash mktemp 盘符导致 trap 误失败的修复注释（cygpath 转换）。",
+}
+
+def build(D, trim=0):
+    fset = {r for r, _, _ in D["files"]}
+    def exists(rel):
+        return rel.replace("/", SEP) in fset
+
+    ts = tracked_stats()
+    now = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    md_total = len(D["md_files"])
+    fm_total = D["fm_yes"] + D["fm_no"]
+    own_md = sum(len(v) for k, v in D["md_by_dir"].items() if k != "05-外部资料库")
+    own_fm = sum(n for k, n in D["fm_by_top"].items() if k != "05-外部资料库")
+    own_code = D["code_count"] - D["dir_code"].get("05-外部资料库", 0)
+
+    # manifest 分类
+    own_mf = [(p, s) for p, s in D["manifests"] if not p.startswith("05-外部资料库" + SEP)]
+    ext_mf = [(p, s) for p, s in D["manifests"] if p.startswith("05-外部资料库" + SEP)]
+    core_mf = [(p, s) for p, s in own_mf
+               if os.path.basename(p) == "manifest.json" and os.path.basename(os.path.dirname(p)) == "evidence"]

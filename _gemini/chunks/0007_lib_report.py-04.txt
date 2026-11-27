@@ -1,0 +1,76 @@
+    A("代码扩展名集合（统计口径）：%s。附件集合：%s。`.ipynb`/`.json`/`.csv` 等归「其他」。" % (
+        " ".join(sorted(S.CODE_EXTS)), " ".join(sorted(S.ATTACH_EXTS))))
+    A("")
+    A("按扩展名计数（Top %d%s）：" % (ext_n, "，完整分布可由 _lib_scan.py 复现" if ext_n < 40 else ""))
+    A("")
+    A("| 扩展名 | 数量 | 类别 |")
+    A("| --- | --- | --- |")
+    for e, n in D["ext_hist"].most_common(ext_n):
+        cat = "笔记" if e == ".md" else ("代码" if e in S.CODE_EXTS else ("附件" if e in S.ATTACH_EXTS else "其他"))
+        A("| %s | %s | %s |" % (e, format(n, ","), cat))
+    A("")
+    if per_top_table:
+        A("按一级目录（md/代码/体积）：")
+        A("")
+        A("| 一级目录 | md | 代码 | 体积 |")
+        A("| --- | --- | --- | --- |")
+        for k in sorted(D["md_by_dir"]):
+            if SEP in k:
+                continue
+            A("| %s | %s | %s | %s |" % (k, format(len(D["md_by_dir"][k]), ","),
+                                         format(D["dir_code"].get(k, 0), ","), S.fmt_size(D["dir_size"].get(k, 0))))
+        A("")
+    else:
+        A("按一级目录的 md/代码/体积见第 2 节目录树一级标注（体积纪律：此处不重复列表）。")
+        A("")
+    A("### 3.1 索引文件搜索结果")
+    A("")
+    A("- 搜索方式：全量文件清单按 basename 匹配 `*manifest*.json` 与 `*index*.json`（排除 node_modules 等）。")
+    A("- `*manifest*.json`：**%d 个** = 自有 %d 个 + 05 外部仓自带 %d 个（后者是第三方项目自己的文件，与知识索引无关）。" % (len(D["manifests"]), len(own_mf), len(ext_mf)))
+    A("- `*index*.json`：**%d 个**，其中 05 外部 %d 个、自有 %d 个。%s" % (
+        len(D["index_jsons"]), len(D["index_jsons"]) - len(idx_out), len(idx_out),
+        ("自有清单：" + "、".join("`%s`" % p for p, _ in idx_out)) if idx_out else "即：**本仓自有内容没有任何全局 index.json**。"))
+    A("- `weave-index.json`：**未找到**（全库 basename 含 weave 的文件 %d 个）。" % len(weave_hits))
+    A("- `scripts/build-index.js`：**不存在**（实测）。Gemini 建议的索引生成脚本尚未落地。")
+    A("")
+    A("### 3.2 自有 evidence/manifest.json（核心 %d 份，完整路径）" % len(core_mf))
+    A("")
+    A("分布：%s。与 `000-学习总览.md` §1.5 宣称「本仓库内共 29 份 evidence/manifest.json（01-阶段课程 9、06-实验代码 14、08-判定题库 6）」%s。" % (
+        "、".join("%s %d 份" % (k, v) for k, v in sorted(core_by_top.items())),
+        "**逐目录吻合**（实测核对）" if core_match else "**存在出入**（实测核对，以本节清单为准）"))
+    A("")
+    if core01_pattern:
+        c01 = [(p, s) for p, s in core_mf if p.startswith("01-阶段课程" + SEP)]
+        c06 = [(p, s) for p, s in core_mf if p.startswith("06-实验代码" + SEP)]
+        c08 = [(p, s) for p, s in core_mf if p.startswith("08-判定题库" + SEP)]
+        if c01:
+            sizes = [s for _, s in c01]
+            A("- `%s`（%s）；**U02–U09 另有 %d 份同构**，路径模式 `%s\\01-阶段课程\\教学单元\\U0X-<单元名>\\evidence\\manifest.json`（每份 %s–%s）" % (
+                ap(c01[0][0]), S.fmt_size(c01[0][1]), len(c01) - 1, ROOT,
+                S.fmt_size(min(sizes)), S.fmt_size(max(sizes))))
+        for p, s in c06:
+            A("- `%s`（%s）" % (ap(p), S.fmt_size(s)))
+        zt = [(p, s) for p, s in c08 if (SEP + "专题题库" + SEP) in p]
+        other = [(p, s) for p, s in c08 if (SEP + "专题题库" + SEP) not in p]
+        if zt:
+            A("- `%s`（%s）；**专题题库另有 %d 份同构**（SQL50/全英文面试10套/后端实操30），路径模式 `%s\\08-判定题库\\专题题库\\<专题>\\[真实环境\\]evidence\\manifest.json`" % (
+                ap(zt[0][0]), S.fmt_size(zt[0][1]), len(zt) - 1, ROOT))
+        for p, s in other:
+            A("- `%s`（%s）" % (ap(p), S.fmt_size(s)))
+    else:
+        for p, s in core_mf:
+            A("- `%s`（%s）" % (ap(p), S.fmt_size(s)))
+    A("")
+    A("自有辅助 manifest（非 evidence/manifest.json 命名，%d 份）：" % len(aux_mf))
+    A("")
+    if core01_pattern:
+        aux90 = [(p, s) for p, s in aux_mf if p.startswith("90-历史归档" + SEP)]
+        auxrest = [(p, s) for p, s in aux_mf if not p.startswith("90-历史归档" + SEP)]
+        for p, s in auxrest:
+            A("- `%s`（%s）" % (ap(p), S.fmt_size(s)))
+        if aux90:
+            dirs = set(os.path.dirname(p) for p, _ in aux90)
+            if len(dirs) == 1:
+                sizes = [s for _, s in aux90]
+                names = "、".join(os.path.basename(p) for p, _ in aux90)
+                A("- `%s` 目录下另有 %d 份：%s（历史归档快照，%s–%s，非知识索引）" % (

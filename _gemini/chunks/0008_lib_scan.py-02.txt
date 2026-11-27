@@ -1,0 +1,106 @@
+        dirnames[:] = sorted(d for d in dirnames if d not in EXCLUDE_DIRS)
+        rel = os.path.relpath(dirpath, ROOT)
+        for fn in sorted(filenames):
+            fp = os.path.join(dirpath, fn)
+            try:
+                sz = os.path.getsize(fp)
+            except OSError:
+                sz = -1
+            ext = os.path.splitext(fn)[1].lower()
+            files.append((os.path.join(rel, fn) if rel != "." else fn, sz, ext))
+    D["walk_errors"] = walk_errors
+    D["files"] = files
+
+    # ---- 全库统计 ----
+    ext_hist = collections.Counter()
+    total_size = 0
+    md_files = []
+    for rel, sz, ext in files:
+        ext_hist[ext or "(无扩展名)"] += 1
+        if sz > 0:
+            total_size += sz
+        if ext == ".md":
+            md_files.append((rel, sz))
+    D["total_files"] = len(files)
+    D["total_size"] = total_size
+    D["ext_hist"] = ext_hist
+    D["md_files"] = md_files
+    D["code_count"] = sum(n for e, n in ext_hist.items() if e in CODE_EXTS)
+    D["attach_count"] = sum(n for e, n in ext_hist.items() if e in ATTACH_EXTS)
+    git_size = 0
+    for dp, dn, fn in os.walk(os.path.join(ROOT, ".git"), onerror=onerror):
+        for f in fn:
+            try:
+                git_size += os.path.getsize(os.path.join(dp, f))
+            except OSError:
+                pass
+    D["git_size"] = git_size
+    D["obsidian_exists"] = os.path.isdir(os.path.join(ROOT, ".obsidian"))
+
+    # ---- 目录计数 (一级/二级) ----
+    dir_md = collections.Counter(); dir_code = collections.Counter(); dir_size = collections.Counter()
+    for rel, sz, ext in files:
+        parts = rel.split(os.sep)
+        for depth in (1, 2):
+            if len(parts) > depth:
+                key = os.sep.join(parts[:depth])
+                if ext == ".md":
+                    dir_md[key] += 1
+                if ext in CODE_EXTS:
+                    dir_code[key] += 1
+                if sz > 0:
+                    dir_size[key] += sz
+    D["dir_md"], D["dir_code"], D["dir_size"] = dir_md, dir_code, dir_size
+
+    # ---- 目录树 (深度3, 仅目录) ----
+    tree = {}
+    for rel, sz, ext in files:
+        parts = rel.split(os.sep)
+        node = tree
+        for p in parts[:-1][:3]:
+            node = node.setdefault(p, {})
+    D["tree"] = tree
+    all_dirs = set()
+    for dirpath, dirnames, filenames in os.walk(ROOT, onerror=onerror):
+        dirnames[:] = [d for d in dirnames if d not in EXCLUDE_DIRS]
+        rel = os.path.relpath(dirpath, ROOT)
+        if rel != ".":
+            all_dirs.add(rel)
+    D["all_dirs"] = all_dirs
+
+    # ---- frontmatter 扫描 + 链接统计 ----
+    fm_yes = 0; fm_no = 0
+    field_ctr = collections.Counter()
+    gemini_ctr = collections.Counter()
+    fm_by_dir = {d: [0, 0] for d in FOCUS_DIRS}  # [有, 无]
+    fm_by_top = collections.Counter()
+    fm_samples = {d: [] for d in FOCUS_DIRS}
+    wiki_n = 0; mdlink_n = 0; big_skipped = 0
+    wiki_in = wiki_out = md_in = md_out = 0
+    md_by_dir = collections.defaultdict(list)
+    for rel, sz in md_files:
+        top = rel.split(os.sep)[0]
+        md_by_dir[top].append(rel)
+        text = read_text(os.path.join(ROOT, rel))
+        if text is None:
+            fm_no += 1
+            continue
+        fm, keys = fm_parse(text)
+        if fm is not None:
+            fm_yes += 1
+            fm_by_top[top] += 1
+            field_ctr.update(keys)
+            for k in keys:
+                if k in GEMINI_FIELDS:
+                    gemini_ctr[k] += 1
+            if top in fm_by_dir:
+                fm_by_dir[top][0] += 1
+                if len([s for s in fm_samples[top] if s["has_fm"]]) < 1:
+                    fm_samples[top].append({"path": rel, "has_fm": True, "fm": fm})
+        else:
+            fm_no += 1
+            if top in fm_by_dir:
+                fm_by_dir[top][1] += 1
+                if len([s for s in fm_samples[top] if not s["has_fm"]]) < 1:
+                    fm_samples[top].append({"path": rel, "has_fm": False, "fm": None})
+        if sz <= 2 * 1024 * 1024:

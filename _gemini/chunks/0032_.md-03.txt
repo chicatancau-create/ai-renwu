@@ -1,0 +1,47 @@
+- [[03-通用/03-调试与验证/踩坑-关机被取消WM_ENDSESSION为假须还原已做的收尾|关机被取消（WM_ENDSESSION 为假）须还原已做的破坏性收尾]] `verified`
+
+- [[03-通用/03-调试与验证/规则-GitCode令牌只读活验用api-v5用户端点|GitCode/AtomGit 令牌只读活验：api/v5/user + Bearer，CredReadW 不回显密钥]] `verified`
+- [[03-通用/03-调试与验证/踩坑-ghapi带-f默认POST致探活404误判仓库已删|gh api 带 -f 默认 POST：探活 404 险些误判仓库已删，探活必须 -X GET]] `verified`
+
+- [[03-通用/03-调试与验证/踩坑-GitHub大包推送被重置需分块推送|GitHub 大包推送中途被重置（curl 56）：分块推送解决，别去动 SSL]] `verified`
+- [[03-通用/04-工程规范与安全/踩坑-提交前审查两坑-全暂存区混入空文件与课程样例误判|提交前审查两坑：全暂存区混入预暂存空文件；「运行时产物」可能是课程必需样例]] `verified`
+
+- [[03-通用/03-调试与验证/踩坑-沙箱只放行工作区致写E盘被拒且write会抹掉源码BOM|沙箱拒写工作区外路径 + write 工具抹掉源码 UTF-8 BOM]] `verified`
+- [[03-通用/03-调试与验证/踩坑-VSLANG1033未把MSVC诊断切成英文|VSLANG=1033 切不动 MSVC 英文诊断：只装中文语言包，无 1033 资源]] `verified`
+- [[03-通用/03-调试与验证/踩坑-Excel区域贴Chart导出空白PNG改用剪贴板或PPT导出|Excel 区域贴 Chart 导出空白 PNG：改用剪贴板 GetImage 或 PowerPoint Slide.Export]] `verified`
+- [[03-通用/03-调试与验证/踩坑-Office不守中文禁则且PPT二次折行切词需预断行|Office 不守中文禁则、PPT 二次折行切词：Pillow 度量预断行 + word_wrap=False]] `verified`
+- [[03-通用/03-调试与验证/踩坑-两安装器写同一目录致双版本混装-resources归后装者|两个安装器写同一目录致双版本混装：resources 归后装者，分离要同步注册表与快捷方式全清单]] `verified`
+
+- [[03-通用/02-AI协作与提示词/规则-本机技能默认只开两个由总路由按需读取|本机所有 Agent 默认只开两个技能，其余由总路由按需读取]] `verified`
+- [[03-通用/03-调试与验证/规则-headroom省token串在ccswitch前面并加接线守护|headroom 省 token 必须串在 cc-switch 前面，并加接线守护]] `verified`
+- [[03-通用/03-调试与验证/踩坑-headroom省量被上游prompt缓存伪造且离线闸挡住ML压缩器|headroom「省 99.8%」是上游 prompt 缓存伪造的；离线闸还会静默关掉 ML 压缩器]] `verified`
+- [[03-通用/03-调试与验证/踩坑-本机执行环境六个静默陷阱-PS反引号wmic缺失pythonw无stdout|本机执行环境的六个静默陷阱：PS 反引号、wmic 缺失、pythonw 无 stdout、GBK 控制台、管道截断退出码、uv.exe 丢失]] `verified`
+- [[03-通用/04-工程规范与安全/踩坑-删联接目录会跟随联接回收真源须靠回收站元数据取证|删联接目录会跟随联接把真源一起回收；靠回收站 $I 元数据取证并原样恢复]] `verified`
+- [[03-通用/04-工程规范与安全/踩坑-gitattributes晚于首次add致备份CRLF被规范化|.gitattributes 晚于首次 git add，备份里的 CRLF 被静默规范化；验收必须克隆回来比 sha256]] `verified`
+- [[03-通用/04-工程规范与安全/规则-技能库上传前按许可排除且私有仓库不豁免|技能库上传前按许可逐个排除；私有仓库不豁免「转移给第三方」]] `verified`
+
+新增记录后，同时在对应分类的 `README.md` 和本索引补充链接。
+
+- [[03-通用/03-调试与验证/踩坑-任务栏图标变白按AUMID查开始菜单快捷方式IconLocation|任务栏图标变白：Win11 按 AUMID 取「开始菜单快捷方式」的 IconLocation，那条指向已卸载的旧路径]] `verified`
+- [[03-通用/03-调试与验证/踩坑-Win11改默认程序无效是OpenWithProgids压制默认ProgId|Win11 改默认程序无效：扩展名键下只要有 `OpenWithProgids`，系统就无视默认 ProgId；只能覆盖 `UserChoice` 指向的那个 ProgId]] `verified`
+- [[03-通用/03-调试与验证/踩坑-CCSwitch多供应商共用同一把密钥致换key无效|换 key 仍报「密钥无效」：CC Switch 里两个供应商的 `apiKeyEnv` 值逐字节相同，改一个等于没改；判据是 sha256 + 编造 key 打 401 对照]] `verified`
+- [[03-通用/03-调试与验证/踩坑-断言活文件mtime大小不变必假失败|断言「活文件 mtime+大小不变」必假失败：改成断言「既有内容字节级原样保留」]] `verified`
+- [[03-通用/04-工程规范与安全/踩坑-pwsh管道喂python把UTF8中文重编码致JSON假错|pwsh 管道把 UTF-8 中文重编码，致 JSON 报假语法错：传路径不传内容]] `verified`
+- [[03-通用/04-工程规范与安全/规则-通用加宽规则击穿形变硬约束须按应用名单制|「某应用太窄」的修复不能按形状泛化：加宽必须按应用名单制，泛化会击穿形变硬约束]] `verified`
+- [[03-通用/03-调试与验证/经验-课件截图反推rpx先按分隔线间距定标-uni-app|课件截图反推 rpx：先按分隔线间距定标，再用 CDP 真实几何复核]] `verified`
+- [[03-通用/03-调试与验证/踩坑-uni-appH5刷新指示器绝对定位隐藏与reload未重置pageIndex致分页取证误判|uni-app H5 刷新指示器靠绝对定位隐藏（判 rect.bottom>0）；reload 未重置 pageIndex 致刷新后跳页]] `verified`（2026-11-18 修复回归绿；短列表触底/端口退听判据见记录；verify11 指示器判据细化为内层 display:none）
+- [[03-通用/03-调试与验证/踩坑-课程代码uni-card-title传Number致每卡一条Vuewarn走console.error|Vue prop 类型警告走 console.error：uni-card title 传 Number 每卡一条 warn，「console 全[]」验收假红]] `verified`（2026-11-18 修复回归绿）
+- [[03-通用/AI客户端配置-dsh-ccswitch|AI 客户端配置笔记（dsh / cc-switch / cc-haha）]]（verified，2026-11-15 补 frontmatter 并登记。散在 `03-通用/` 顶层而不属任何细分类目，故登记在板块索引而非某个分类 README。**2026-11-15 决定不搬**：移动既有记录属结构改动，而它已可检索；要归位目标应是 `02-AI协作与提示词/`。`verified` 依据＝操作笔记含具体路径/注册表键/实测体积，且「系统代理 127.0.0.1:7890」与同日另一次独立实测一致）
+
+## 05-Codex工程知识库（2026-11-15 从 D://_整理//05-杂项//Codex 并入）
+
+原 Codex 侧独立 Obsidian 知识库，已并入本手册作为「工程执行标准 + 错误复盘 + 模式库」底座。
+入口：[[03-通用/05-Codex工程知识库/00-入口/首页|Codex 知识库首页]]
+
+- `01-标准`：工程执行标准、任务开始检查清单、修改后验证清单、规则冲突与优先级、检索关键词规范、知识库维护与升级规则、敏感信息与脱敏规则
+- `02-错误复盘`：错误索引 + 单条复盘
+- `03-模式库`：可复用模式索引
+- `04-项目索引`：项目入口索引
+- `00-入口`：首页、本机开发环境、提示词接入规范
+- `90-模板`：复盘/模式/项目索引/验证记录模板
+- [[03-通用/03-调试与验证/踩坑-npm报404包名肉眼难辨mysq12与mysql2须读debug日志|npm 报 404 的包名要读 debug log 确认（mysq12 vs mysql2）]] `verified`

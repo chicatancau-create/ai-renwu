@@ -1,0 +1,125 @@
+﻿---
+title: "接力：抢走默认路由的低 metric 虚拟网卡换成了 Radmin VPN（2026-10-13 实测）"
+date: 2026-10-13
+domain: common
+category: 03-通用/03-调试与验证
+status: verified
+severity: high
+stack: [Windows, Radmin VPN, PowerShell, NetAdapter]
+tags: [网络取证, 路由, 假超时, 接力]
+---
+
+# 问题：默认路由又被一块虚拟网卡抢了，这次是 `Radmin VPN`（metric=1），不是 Meta Tunnel
+
+## 一句话结论
+
+这条是 [[踩坑-虚拟网卡空metric抢走默认路由致域名假超时]] 的**接力记录**：
+那条记的 `Meta Tunnel` + RNDIS 组合在本机已不成立，**但「低 metric 虚拟网卡抢走默认路由」这个模式完全没变**。
+2026-10-13 实测，抢路由的是 **`Radmin VPN`：`InterfaceMetric=1`、`AutomaticMetric=Disabled`、`Connected`**。
+**结论不要写死网卡名，每次都要现查。**
+
+## 触发条件与影响
+
+- 环境与版本：Win11 28000；`以太网 2`（`192.168.0.1`）为真实 uplink，`WLAN` 已断开。
+- 触发条件：装了带虚拟网卡的桌面软件（Radmin VPN / Meta 系 / 各类加速器）并置 `AutomaticMetric=Disabled`。
+- 影响范围：与上一条相同——不走系统代理的程序（Node/Electron/Rust 自带 HTTP 栈）可能被灌进隧道，
+  表现为某些域名直连一律超时、走代理却正常；代价是排查方向容易被带偏到 DNS 或目标站。
+
+## 复现步骤（本次为状态取证，非故障复现）
+
+1. 前置条件：本机装有 Radmin VPN 且处于 Connected。
+2. 操作或命令：
+   ```powershell
+   Get-NetRoute -DestinationPrefix '0.0.0.0/0'
+   Get-NetIPInterface -AddressFamily IPv4 | Sort-Object InterfaceMetric
+   ```
+3. 预期结果：默认路由由真实 uplink（`以太网 2`）承担。
+4. 实际结果：默认路由表里 `Radmin VPN` 以 `InterfaceMetric=1` 出现，压过 `以太网 2` 的 35。
+
+## 证据
+
+2026-10-13 本机实测输出：
+
+| 出口网卡 | NextHop | RouteMetric | InterfaceMetric |
+|---|---|---|---|
+| **Radmin VPN** | `26.0.0.1` | 9256 | **1** |
+| 以太网 2 | `192.168.0.1` | 0 | 35 |
+| WLAN | `192.168.171.231` | 0 | 35 |
+
+各网卡 metric 排序（节选）：
+
+| InterfaceIndex | 网卡 | InterfaceMetric | AutomaticMetric | 状态 |
+|---|---|---|---|---|
+| **8** | **Radmin VPN** | **1** | **Disabled** | **Connected** |
+| 19 | WLAN | 35 | Enabled | Disconnected |
+| 24 / 22 | VMware VMnet1 / VMnet8 | 35 | Enabled | Connected |
+| 18 | 以太网 2 | 35 | Enabled | Connected |
+| 4 | 蓝牙网络连接 | 65 | Enabled | Disconnected |
+
+- `Radmin VPN` 的 `AutomaticMetric: Disabled` 且手写 `InterfaceMetric=1`，**比上一条记录的"空值"更极端**：
+  空值至少还可能被系统重算，写死 1 则稳定抢占。
+- 对照：上一条记录里是 `Meta Tunnel` + `RNDIS`；**本次全程没有 Meta Tunnel，也没有 RNDIS**
+  → 证明"换的是网卡，不换的是模式"。
+
+## 根因分析
+
+- **已确认的根因**：与上一条同源——默认路由优先级由 `InterfaceMetric + RouteMetric` 决定，
+  第三方软件建卡时把 `InterfaceMetric` 写成极小值（或留空），压过真实 uplink。
+- **排除过的假设**：
+  - 不是 DNS 问题（本次未涉及解析层，直接看的是路由表出口）；
+  - 不是"Radmin 装坏了"（网卡状态本身 `Connected`，属正常安装行为）；
+  - 不是 `RouteMetric` 的作用（Radmin 的 `RouteMetric=9256` 明显更大，
+    说明**决定胜负的是 InterfaceMetric，不是 RouteMetric**）。
+- **问题归属**：环境或依赖（第三方软件建卡）。
+
+## 最小修复
+
+**本次未执行修改**——用户当前没有报告网络故障，且 Radmin VPN 可能是用户有意使用的工具。
+**不擅自调 metric、不禁用网卡。**
+
+若确实出现"某域名直连超时、走代理正常"，按上一条记录的修法处理：
+
+```powershell
+# 需要管理员；只降优先级，不删网卡不删路由
+Set-NetIPInterface -InterfaceIndex 8 -InterfaceMetric 5000
+# 回滚：Set-NetIPInterface -InterfaceIndex 8 -InterfaceMetric 1
+```
+
+## 验证记录
+
+- [x] 默认路由出口取证：`Get-NetRoute` 三条记录，Radmin VPN metric=1 居首。
+- [x] 网卡 metric 取证：`Get-NetIPInterface` 全表核对，Radmin VPN 为最低且 `AutomaticMetric=Disabled`。
+- [x] 与旧记录的差异核对：本次无 `Meta Tunnel`、无 RNDIS，确认为新一轮而非旧状态残留。
+- [ ] 实际影响验证：**未做**（未复现"直连超时"症状，未做带/不带代理的对照请求）。
+- [ ] 修改后回归：**未做**（未执行 metric 调整）。
+- [ ] 重启后是否保持：未测。
+
+## 可复用规则
+
+**这条记录的价值不在结论，在于"结论会过期"：**
+排查"连不上某域名"时，**永远现查 `Get-NetRoute` + `Get-NetIPInterface`，不要凭记忆认定是哪块网卡**。
+判据表、修复方式、`Get-NetTCPConnection` 看本地地址的取证纪律，全部沿用上一条记录。
+
+新增一条判据：**`InterfaceMetric` 与 `RouteMetric` 同时要看，且前者通常是决定性的**
+——本次 Radmin 的 `RouteMetric` 高达 9256 仍抢到了默认路由，只看 RouteMetric 会得出错误结论。
+
+## 适用范围与不适用范围
+
+- **适用**：Windows 上装了 TUN/VPN/加速器/远控类虚拟网卡的机器，判断默认出口归属时。
+- **不适用**：代理端出口质量差导致的超时（那要换节点）；本记录**未观测到故障**，
+  仅记录"路由归属已变更"这一事实，不能据此断定当前网络有问题。
+
+## 剩余风险
+
+**本记录只证明"路由出口是 Radmin VPN"，未证明这造成了任何实际故障**——
+本次没有出现超时症状，也没有做对照实验。若后续真出现直连超时，再回到本记录并补做
+"改 metric 前/后同命令对照"以升级结论。
+
+另外：Radmin VPN 是用户可能主动使用的工具，**降它的优先级会影响它的正常功能**，
+修改前应先确认用户是否在用。
+
+## 2026-10-15 再接力：**只看 `0.0.0.0/0` 会漏掉 Cloudflare WARP 的分片接管**
+
+本轮取证时 `Get-NetRoute -DestinationPrefix '0.0.0.0/0'` 只列出 `WLAN` / `以太网 2` / `Radmin VPN`，
+**看不到 `CloudflareWARP`** —— 但 `warp-cli settings` 明明白白是 `Mode: Warp` + `WARP tunnel protocol: MASQUE`，
+路由表里它装了 `0.0.0.0/5`、`128.0.0.0/3`、`112.0.0.0/4`、`100.0.0.0/10` …**一整批分片前缀**（下一跳 `192.0.2.1`、`RouteMetric=256`），

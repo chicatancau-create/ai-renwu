@@ -1,0 +1,131 @@
+﻿/**
+ * 客户端：把会话标题栏那个只读的预设标签，换成一个真正能点的切换器。
+ *
+ * 三个必须绕开的出厂限制：
+ *  1. 出厂 AgentPresetLabel 是纯 <span>，没有任何点击行为。
+ *  2. 出厂 AgentPresetSeatController.apply() 里有 `if (!session.blank) return UNCHANGED`，
+ *     会在浏览器端把切换请求直接丢弃，连远程调用都不会发出。所以这里自己调 remote。
+ *  3. 页头容器有 overflow 裁剪，普通 position:absolute 的菜单会被裁掉看不见。
+ *     因此菜单用 createPortal 挂到 document.body，并以 fixed 定位贴住按钮。
+ *
+ * 背景色：直接使用主题令牌 --dsw-alias-bg-overlay（"Overlay and popover background"），
+ * 与出厂浮层用的是同一个令牌，颜色必然一致。
+ *
+ * 宿主端的 agent-preset/locked 硬锁由 dsh-preset-unlock 负责放开。
+ */
+window.__ModuleLoader__.load({
+  id: '@local/dsh-preset-switcher',
+  factory(require) {
+    const React = require('react')
+    const h = React.createElement
+
+    /** 出厂 primitives 提供图标；拿不到就退回内联 SVG。 */
+    let primitives
+    try {
+      primitives = require('@deepseek-ai/dsh-client-ui-primitives')
+    } catch (cause) {
+      console.warn('preset-switcher: 出厂 primitives 不可用，使用内联图标', cause)
+      primitives = undefined
+    }
+    const IconAgentPreset = primitives?.IconAgentPresetOutlineRegular
+    const IconChevronDown = primitives?.IconChevronDownOutlineRegular
+
+    /** react-dom 提供 createPortal；拿不到就退回同树 fixed 定位（fixed 不受 overflow 裁剪）。 */
+    let createPortal
+    try {
+      const ReactDOM = require('react-dom')
+      createPortal = ReactDOM?.createPortal
+    } catch (cause) {
+      console.warn('preset-switcher: react-dom 不可用，菜单改用同树 fixed 定位', cause)
+      createPortal = undefined
+    }
+
+    /**
+     * 出厂 AgentPresetSeat.module.css 的类名。
+     * 那张样式表由 @deepseek-ai/dsh-client-ui-agent-preset 注入到页面，直接复用即可。
+     */
+    const CSS = {
+      seat: 'm2hUqa_seat',
+      seatIcon: 'm2hUqa_seatIcon',
+      seatLabel: 'm2hUqa_seatLabel',
+      chevron: 'm2hUqa_chevron',
+    }
+
+    /**
+     * 出厂内置预设没有 name 字段，文案来自 locale 字典。
+     * 这里照抄 @deepseek-ai/dsh-agent-presets 的 display.js 映射表，写成中文。
+     */
+    const BUILT_IN = {
+      standard: {
+        name: '标准模式',
+        description: '处理代码、文件和资料，适合大多数任务。Agent 会按需使用检索、编辑和终端等工具。',
+      },
+      ptc: {
+        name: 'PTC 模式',
+        description: '包含标准模式的所有能力，更适合批量调用工具，并对结果进行筛选、整理、去重、统计或汇总的任务。',
+      },
+      minimal: {
+        name: '极简模式',
+        description: 'Agent 使用终端和图片读取工具，并支持上下文压缩，适合测试和对比其基础表现。',
+      },
+      cordis: {
+        name: '创造模式',
+        description: '用对话定制 DSH：让 Agent 编写插件，添加新功能或界面；也能组合工具和提示词，创建自己的模式。',
+      },
+    }
+
+    /**
+     * 解析一条预设的显示文案，与出厂 presetDisplayText 同语义：
+     * 内置预设走中文映射，自定义预设用作者自己写的名字。
+     * @param preset 预设表里的一行。
+     * @returns {{name: string, description: string|undefined}}
+     */
+    function displayText(preset) {
+      const built = BUILT_IN[preset.id]
+      const shipped =
+        built !== undefined &&
+        (preset.trust === 'system' || preset.name === undefined || preset.name === preset.id)
+      if (shipped) return built
+      return { name: preset.name ?? preset.id, description: preset.description }
+    }
+
+    /** 主题是否处于深色模式（用于给浮层选对底色）。 */
+    function prefersDark() {
+      if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return true
+      try {
+        return window.matchMedia('(prefers-color-scheme: dark)').matches
+      } catch {
+        return true
+      }
+    }
+
+    /**
+     * 浮层底色。
+     * 这里刻意不读主题令牌：菜单可能被 portal 到 document.body，
+     * 令牌在那个作用域上会解析成偏浅的兜底色（实测 #5F666E），
+     * 与界面的深色表面完全不搭。直接用出厂浮层实测色，最确定。
+     */
+    function overlayColor() {
+      return prefersDark() ? '#2C2E34' : '#FFFFFF'
+    }
+
+    /** 浮层描边色：与出厂浮层同一档，不依赖令牌作用域。 */
+    function overlayBorder() {
+      return prefersDark() ? 'rgba(255, 255, 255, .10)' : 'rgba(0, 0, 0, .08)'
+    }
+
+    /** 菜单容器：出厂浮层配色 + 贴住按钮的 fixed 定位，绝不被裁剪。 */
+    function menuStyle(anchor) {
+      const style = {
+        position: 'fixed',
+        zIndex: 2147483000,
+        minWidth: 280,
+        maxWidth: 360,
+        maxHeight: 420,
+        overflowY: 'auto',
+        padding: 6,
+        border: '1px solid ' + overlayBorder(),
+        borderRadius: 12,
+        background: overlayColor(),
+        boxShadow: '0 12px 32px rgba(0, 0, 0, .32)',
+      }

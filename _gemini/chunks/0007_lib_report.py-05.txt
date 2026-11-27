@@ -1,0 +1,87 @@
+                    ap(os.path.dirname(aux90[0][0])), len(aux90), names,
+                    S.fmt_size(min(sizes)), S.fmt_size(max(sizes))))
+            else:
+                for p, s in aux90:
+                    A("- `%s`（%s）" % (ap(p), S.fmt_size(s)))
+    else:
+        for p, s in aux_mf:
+            A("- `%s`（%s）" % (ap(p), S.fmt_size(s)))
+    A("")
+    A("05 外部仓自带的 %d 个 manifest 示例（其余略，完整清单可由脚本复现）：" % len(ext_mf))
+    A("")
+    for p, s in ext_mf[:ext_mf_n]:
+        A("- `%s`（%s）" % (ap(p), S.fmt_size(s)))
+    A("")
+    A("### 3.3 README 宣称的「17 份 manifest」对账")
+    A("")
+    A("README 宣称「E01–E13 + G1 + P02/P03/P04 共 17 份 manifest 全部校验通过」。对账：")
+    A("")
+    A("- 仓内 14 份（E01–E13 各 1 + G1 1）：**实测存在**，路径见 3.2 的 06-实验代码部分。")
+    A("- 外部 3 份（P02/P03/P04）：**不在本仓**（全库无 P0* 路径的 manifest，实测）。07-项目实现/README.md 宣称其位于外部仓，推定路径如下（**未确认**，外部仓内容不在扫描范围）：")
+    A("  - `E:\\fullstack-code\\projects\\project02-collab\\evidence\\manifest.json`")
+    A("  - `E:\\fullstack-code\\projects\\project03-trade\\evidence\\manifest.json`")
+    A("  - `E:\\fullstack-code\\projects\\project04-saas\\evidence\\manifest.json`")
+    A("- 总览另宣称外部仓共 8 份 manifest（含 P01/P05/变体项目）：**未确认**。")
+    A("- 「全部校验通过」为文档宣称；本次只读扫描未复跑校验（见附录 B）。")
+    A("")
+    A("### 3.4 manifest 结构样本（完整 JSON，实测读取）")
+    A("")
+    A("实验样本 `%s`：" % ap(D["manifest_exp"]["path"]))
+    A("")
+    A(fence(emb(D["manifest_exp"]["text"]), "json"))
+    A("")
+    if u01_sample:
+        A("教学单元样本 `%s`：" % ap(D["manifest_u01"]["path"]))
+        A("")
+        A(fence(emb(D["manifest_u01"]["text"]), "json"))
+        A("")
+    else:
+        try:
+            k1 = set(json.loads(D["manifest_exp"]["text"]).keys())
+            k2 = set(json.loads(D["manifest_u01"]["text"]).keys())
+            same = (k1 == k2)
+        except Exception:
+            same = False
+        A("教学单元样本：`%s`（%s；体积纪律不嵌入全文）——实测顶层字段集与 E01 %s（schema=1，experiment=\"U01\"）。" % (
+            ap(D["manifest_u01"]["path"]),
+            S.fmt_size(os.path.getsize(os.path.join(ROOT, D["manifest_u01"]["path"]))),
+            "相同" if same else "不同"))
+        A("")
+    if D["manifest_proj"]["text"]:
+        A("项目样本 `%s`：" % ap(D["manifest_proj"]["path"]))
+        A("")
+        A(fence(emb(D["manifest_proj"]["text"]), "json"))
+    else:
+        A("项目（P 系）样本：**无法提供**——本仓不存在 P 系 manifest（实测），外部仓未扫描（任务边界）。")
+    A("")
+    A("结构解读（扫描员）：schema=1；字段为 `experiment / generated_at / commit / runtime{platform,node,gcc,gdb} / commands[{cmd,exit}] / artifacts[{path,bytes,sha256}] / unverified[]`。这是**实验证据清单**（记录哪条命令在哪个环境跑过、产物哈希、哪些边界未验证），由 `06-实验代码/_template/manifest.mjs` 生成/校验（该文件实测存在：%s）。它**不是** Gemini 建议的「知识点索引 manifest」（无 id/domain/stack/type/difficulty/sandbox_path/related_ids、无笔记元数据、无链接图）。两者用途不同，不能直接复用；但其「生成→校验→防手改」的工具链模式可借鉴。" % ("是" if exists("06-实验代码/_template/manifest.mjs") else "否"))
+    A("")
+
+    # ================= 4 README + 总览 =================
+    A("## 4. 根文档全文")
+    A("")
+    readme_b = len(D["readme"].encode("utf-8")) if D["readme"] else 0
+    A("### 4.1 `%s`（%s 字节，全文）" % (ap("README.md"), format(readme_b, ",")))
+    A("")
+    A(fence(emb(D["readme"]), "markdown"))
+    A("")
+    ov_b = len(D["overview_full"].encode("utf-8")) if D["overview_full"] else 0
+    A("### 4.2 `%s`（%s 字节，%d 行 ≤250 行，全文收录）" % (ap("000-学习总览.md"), format(ov_b, ","), D["overview_lines"]))
+    A("")
+    A(fence(emb(D["overview_full"]), "markdown"))
+    A("")
+
+    # ================= 5 Frontmatter =================
+    A("## 5. Frontmatter 现状（重点）")
+    A("")
+    A("### 5.1 全库覆盖率")
+    A("")
+    A("- 有 frontmatter：**%s** / 无：**%s** / 总 md：**%s** → 覆盖率 **%.1f%%**。" % (
+        format(D["fm_yes"], ","), format(D["fm_no"], ","), format(fm_total, ","),
+        100.0 * D["fm_yes"] / max(fm_total, 1)))
+    A("- 但按一级目录分解后，覆盖率几乎全部由 05 外部镜像贡献：")
+    A("")
+    A("| 一级目录 | md 数 | 有 fm | 覆盖率 |")
+    A("| --- | --- | --- | --- |")
+    for k in sorted(D["md_by_dir"]):
+        n = len(D["md_by_dir"][k]); y = D["fm_by_top"].get(k, 0)

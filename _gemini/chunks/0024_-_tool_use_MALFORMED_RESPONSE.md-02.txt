@@ -1,0 +1,36 @@
+- 修复逻辑：透传所有非 `finish` chunk 并累积每个 index 的 tool-call（id/name/args）；扣住终局 `finish`；若 `failure.code === 'MALFORMED_RESPONSE'` 或消息匹配 `/after JSON at position|Unexpected non-whitespace character/i`，则对未闭合的 tool-call 补 `block-end{index, block:{type:'tool-call', id, name, arguments: 第一个完整 JSON 对象}}`，可选插一条 text 提示，再发 `finish{reason:{kind:'tool-calls'}}`；切不出对象时按 `unsalvageableArguments: 'empty-object'` 兜底 `{}`；无关错误（502/SERVER 等）原样透传不改写。
+- 配置：`enabled / notify / unsalvageableArguments / logCalls / logRepairs / logFile`，默认 `<DSH_HOME>/llm-stream-repair.log`；另内置一次性金丝雀（放置 `<日志目录>\llm-stream-repair.canary` 即令下一次模型调用返回合成假流，用完自动删文件）。
+
+## 验证记录
+
+- [x] 单元：`tools/selftest.mjs` 6 项全 PASS（切片器 / 正常流原样透传 / 粘连→只执行第一个+提示+本轮继续 / 抛异常形态也能修 / 无法切片兜底 `{}` / 无关错误不改写）
+- [x] 端到端（真实主循环 + 金丝雀假流）：assistant 出现提示文本 → **真的派发了一次 `pwsh`** → 报 `invalid arguments: missing required property "description"`（证明 `command` 参数被保留且 JSON 可解析）→ 第二个 `CANARY-SHOULD-NOT-RUN` 未执行 → 本轮未中断；日志 `REPAIRED call=codingplan/deepseek-v4.1-flash blocks=[pwsh(args=77)] salvaged=1 unsalvageable=0`
+- [x] 激活：`plugin_manager set_bundle` 返回 `{"changed":false,"application":"applied"}`，日志多一条 `APPLIED enabled=true notify=true unsalvageable=empty-object`
+- [ ] 真实上游故障的后续命中（靠日志 `REPAIRED ...` 行长期观察）
+
+## 可复用规则
+
+1. **DSH 里「工具参数 JSON 非法」不该等于整轮报废**。给 provider 配中转时，先装 `llm-stream-repair` 再谈稳定性；判它有没有干活只看 `<DSH_HOME>\llm-stream-repair.log` 里的 `REPAIRED` 行。
+2. **waterfall 型事件可以整条替换下游结果**：`ctx.on('llm/stream', (options, next) => 自己的 AsyncIterable)`。要改模型流行为，优先在这里做，不要去动 `app.asar`。
+3. **`block-end` 的 block 是权威值**，能覆盖之前累积的 delta —— 这是修补坏参数最省事的手段。
+4. 写 DSH 宿主插件：`export const inject = ['llm']` + `export function apply(ctx, pluginConfig)`。**配置是 `apply` 的第二个参数**；用 `ctx.config` 会报 `cannot get property "config" without inject`（插件装上了但 `did not activate`）。
+5. 装本地 bundle 的正确顺序：`plugin_manager remove_bundle` → `install_bundle`（target 形如 `@local/dsh-llm-stream-repair@link:G:/...`）。**只在 profile `cordis.patch.yml` 手写 insert 行不会热生效**（启动时才组合，HMR 不监听）；直接 `install_bundle` 撞已有依赖会返回 `already-installed`。改完代码用 `set_bundle` 重载即可，不必重启宿主。
+6. 日志是 UTF-8：`Get-Content` 必须加 `-Encoding UTF8`，否则中文显示成 `鐢ㄥ亣娴佹浛鎹?` 这种乱码，别误判成写入坏了。
+
+## 适用范围与不适用范围
+
+- 适用：DSH 走中转/聚合网关（anthropic-messages 或 openai-completions 皆可）时出现「参数 JSON 末尾多字符 / 两个对象粘连」类失败
+- 不适用：单一工具调用被截断（`max-tokens` 截流）、工具名本身缺失、上游 5xx 隧道故障（那是重试层的事，插件故意不改写）
+
+## 剩余风险
+
+- 修复只能**保住第一个调用**，第二个调用的名字在上游已经丢失，无法恢复，必须由模型下一 step 重发（提示文案已引导）
+- 若上游把两个调用的**参数交错**（而非顺序粘连），切片器可能切不出合法对象，落到 `{}` 兜底，工具会报参数缺失（可接受，仍不毁轮）
+- 插件依赖 `llm/stream` 事件契约，大版本升级后需复核（`dsh-llm` 的 `GenerateOptions`/`StreamChunk` 若改名要同步）
+
+## 关联
+
+- 相关记录：[[踩坑-会话进行中装插件致热重载报service-unavailable]]、[[踩坑-DSH插件package.json带BOM致整包被内核静默跳过]]、[[经验-DSH装插件与删provider的四个动作点]]、[[踩坑-bundle旧版依赖盖住内核同名包致启动失败]]、[[规则-Electron的app.asar可直接按头解析取文件无需asarCLI]]
+- 相关分类：[[03-通用/03-调试与验证/README|调试与验证]]
+- 相关代码：`G:\AIrenwu\02_项目代码\dsh-llm-stream-repair\index.js`、`...\cordis.patch.yml`、`...\tools\selftest.mjs`
+- 相关配置：`D:\DevCache\.dsh\profiles\desktop\package.json`（`dsh.profile.bundles` 末项）、`D:\DevCache\.dsh\profiles\desktop\cordis.patch.yml`（provider `codingplan`）、`D:\DevCache\.dsh\llm-stream-repair.log`

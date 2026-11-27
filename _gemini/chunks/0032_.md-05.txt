@@ -1,0 +1,25 @@
+- [[03-通用/04-工程规范与安全/规则-采集工程能力矩阵未验证不得写实时不漏消息|采集工程能力矩阵：未验证不得写「实时/全历史/不漏消息」，统计要统一到最新版本]] `verified`
+- [[03-通用/03-调试与验证/踩坑-Postman启动瞬间云端断网致崩溃屏且网络自愈后不自恢复须重启|Postman 崩溃屏：启动瞬间云端瞬断、网络自愈后不自恢复须重启；Squirrel 升级重启即生效]] `verified`
+- [[03-通用/03-调试与验证/踩坑-GetChildItem的Include配LiteralPath不过滤会多删文件|Get-ChildItem 的 -Include 配 -LiteralPath 不过滤，会连不该删的文件一起删]] `verified`
+- [[03-通用/03-调试与验证/踩坑-DevEco命令行hvigor两坑-缺SDK环境变量报00303217与unsigned警告致假exit1|DevEco 命令行 hvigor：缺 DEVECO_SDK_HOME 报 00303217；unsigned WARN 致假 exit 1，红绿认 stdout]] `verified`
+- [[03-通用/04-工程规范与安全/规则-本机管理员提权可静默完成不要推给用户|本机管理员提权可静默完成，权限类工作不要推给用户去双击文件]] `verified`
+- [[03-通用/04-工程规范与安全/规则-任务区与手册一体化联动|任务区与手册一体化联动：手册迁入 G:\AIrenwu、双向入口互链、完工自动回写授权、DSH/WorkBuddy 触发链现状]] `verified`（2026-11-16）
+- [[02-后端/04-数据库与ORM/踩坑-MySQL8重启后JDBC首连报PublicKeyRetrievalNotAllowed须allowPublicKeyRetrieval|MySQL8 重启后 JDBC 首连报 Public Key Retrieval is not allowed：URL 加 allowPublicKeyRetrieval=true]] `verified`（2026-11-18）
+- [[03-通用/03-调试与验证/踩坑-TraeCN自更新改名留旧快捷方式致开始菜单两个Trae实为同一程序|Trae CN 自更新改名留旧快捷方式，开始菜单「两个 Trae」实为同一程序：进程 Path/卸载注册表/lnk TargetPath 三清单判重；清理删重复新 lnk → 按用户要求旧 lnk 改名 TRAE CN（磁贴需重固定）→ 设置 window.startupWindowType=agent 默认 Agent 启动（已执行，端到端待一次重启）]] `verified`（2026-11-18）
+- [[03-通用/02-AI协作与提示词/规则-全机AI共享全局记忆存D盘Skills库并接线各Agent|全机 AI 共享全局记忆：实体存 D:\Skills\global-memory、接线各 Agent 全局指令文件、单向同步与并集冲突分诊]] `verified`（2026-11-19）
+- [[03-通用/03-调试与验证/经验-CapCut国际版草稿自动化-pycapcut建草稿与vosk离线字幕|CapCut 国际版草稿自动化：pycapcut 建草稿 + vosk 离线字幕；装库用自带 3.12 别用 3.15；v4 转场总时长不变语义 + ffmpeg 成品导出]] `verified`（2026-11-22）
+- [[03-通用/03-调试与验证/经验-CapCut克隆草稿做新时间线-脚本化建草稿与首页索引去重|CapCut 克隆草稿做新时间线：克隆能打开的草稿改 JSON 最稳；extra_material_refs 必须换 id 并登记；render_index 约定；root_meta_info 按路径去重否则首页重复卡片；CapCut 抢占前台/关不掉的自动化写法]] `verified`（2026-11-24）
+- [[03-通用/03-调试与验证/经验-微信msg-video临时文件会被自动清理-收到媒体立即备份|微信 msg\video 临时视频自动清理：收到媒体立即备份]] `verified`（2026-11-21）
+- [[03-通用/03-调试与验证/OpenRevo插件页开发三条硬规矩|OpenRevo 插件页开发三条硬规矩：相对路径不通 / 面板惨白 / config 写坏]] `verified`
+- [[03-通用/03-调试与验证/踩坑-宿主以管理员运行时外部进程改不了它的窗口样式-穿透要页面自己调宿主接口|OpenRevo 宿主提权后外部进程改不了它的窗口样式：SetWindowLong 返回 0 / err=5，穿透要页面自己调宿主接口；判穿透看 WS_EX_TRANSPARENT(0x20) 而非 WS_EX_LAYERED(0x80000)]] `verified`（2026-11-20）
+- [[03-通用/03-调试与验证/踩坑-删插件目录被拒是内核驱动与被注入DLL占用-先改父目录名再登记开机删除|删插件目录报「访问被拒绝」的三层真因：宿主 auto_start 反复拉起 exe / .sys 已注册成 Running 内核驱动服务 / .dll 被全局钩子注入 svchost。先 Move-Item 改父目录名，再 sc delete + MoveFileEx 开机删除 + RunOnce 兜底]] `verified`（2026-11-20）
+- [[03-通用/04-工程规范与安全/规则-AI模型统一存放D盘Models目录|AI 模型统一存放 D:\Models：权重只放/只从这里加载，zip 归 _archives；存量迁移与脚本默认路径改指已验证]] `verified`（2026-11-22）
+- [[03-通用/04-工程规范与安全/规则-工作区不留视频-交付即清中间产物|工作区不留视频：成品/缓存落 D 盘、证据只留图文、交付确认后清；CapCut 草稿依赖媒体例外]] `verified`（2026-11-22）
+- [[03-通用/03-调试与验证/经验-DSH装插件与删provider的四个动作点|DSH 装插件与删 provider（2026-11-22 再补：子代理选模型键名 modelSelection/modelDiscovery、白名单仅新会话生效、根级 tool-subagent 撞车、conductor/agent-teams 分派模型、插件源码补丁靠计划任务重打）]] `verified`
+
+- [经验-DSH装插件与删provider的四个动作点](03-调试与验证/经验-DSH装插件与删provider的四个动作点.md) — 2026-11-22 补：外部 CLI 子代理权限三档实测（claude_code 用 bypassPermissions 才能读文件+跑 Bash）、团队面板默认展开为何不做、archived-cleanup 节点自嵌套提醒
+- [[03-通用/03-调试与验证/经验-XD拖移auto-animate落盘格式用亲笔样本定案与校验器盲区|XD 拖移落盘格式：drag + 独立 action auto-animate，用软件亲笔样本定案；校验器 FAIL 先跑基线区分盲区]] `verified`（2026-11-24）
+- [[03-通用/03-调试与验证/踩坑-CCSwitch判claude无法运行且反重力不识别-陈旧npm前缀遮蔽与进程PATH|CC Switch 判 claude 无法运行、三工具重复安装、Antigravity 不识别：陈旧 npm 前缀遮蔽 + 自更新 .old 残骸 + 进程 PATH 陈旧；Antigravity 条目=agy CLI；冲突横幅=ANTHROPIC* 用户变量]] `verified`（2026-11-24）
+- [[03-通用/03-调试与验证/经验-反重力汉化每次需单跑工具-动态CDP注入与官方一键快捷方式整合|反重力汉化每次要单跑工具：动态 CDP 注入随会话消失；官方 --shortcut 一键链 + repoint 开始菜单原 lnk 即启动即汉化（静态 --patch 仅 IDE）]] `verified`（2026-11-24）
+- [[03-通用/03-调试与验证/经验-反重力汉化每次需单跑工具-动态CDP注入与官方一键快捷方式整合|反重力汉化启动链自动更新：launch.ps1 每次启动比对 release digest 自动校验+备份+替换（失败回落旧版）；headless OEM936 码页坑须 curl -o 文件读 UTF8]] `verified`（2026-11-24 后续）
+- [[03-通用/03-调试与验证/经验-XD组件状态与state-transition落盘格式及校验器扩展|XD 组件状态落盘：默认=母版 group.children、非默认=states[]+syncMap、实例=syncRef；点击切换=state-transition 双重表示；克隆 kit 母版改 id 交付自有组件；校验器原不认状态/母版组 id 会误报，扩展后基线也 PASS]] `verified`（2026-11-24）

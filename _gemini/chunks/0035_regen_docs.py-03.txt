@@ -1,0 +1,71 @@
+    if o == "本机自建":
+        continue
+    tp.append("| `%s` | `%s` | %s | %s | %s |\n" % (
+        s["dir"], s["name"], o.replace("|", "/"), l.replace("|", "/"),
+        "有" if s["lic_files"] else "无"))
+tp.append("\n## 三、目录名与 frontmatter `name` 不一致（已知例外，不要「顺手改」）\n")
+tp.append("\n| 目录 | name | 为什么保留 |\n| --- | --- | --- |\n")
+EXC = {
+    "reverse-trace": "自带闸门 `scripts/validate_skill.py` 硬校验 name 必须是 `spider-king`，改了会多一条 ERROR",
+    "reverse-wechat-miniapp": "与上游包名一致；Qoder 等按目录名登记，`reverse-` 前缀已足够区分",
+    "brave-web-search": "上游 name 就是 `web-search`；目录名加了引擎前缀便于区分 tavily",
+    "barnhardt-enterprises-inc-checkpoint": "skillstore slug 带厂商前缀，`.skill-lock.json` 按此 key 记录",
+    "barry-liu-888-requirement-translator": "同上",
+    "sickn33-frontend-slides": "同上",
+}
+for s in skills:
+    if s["name"] != s["dir"]:
+        tp.append("| `%s` | `%s` | %s |\n" % (s["dir"], s["name"], EXC.get(s["dir"], "历史原因，保留")))
+tp.append("\n路由已验证：`router.py show <name>` 对上述每一个都能解析到正确目录，**不一致不影响使用**。\n")
+tp.append("\n## 四、重复与分叉\n")
+tp.append("\n- `D:\\Skills\\webapp-building` 与 `D:\\QoderToolkit\\web-kimi` **同名（name 都是 "
+          "`webapp-building`）且同源**：175 个文件中 **173 个字节完全相同**，只有 `SKILL.md` 不同"
+          "（4783 B vs 2537 B），前者多 `agents/openai.yaml`，后者多 `PROVENANCE.md`。\n"
+          "  **没有合并**：`qoder-toolkit\\SKILL.md` 正文硬编码 `D:\\QoderToolkit\\web-kimi\\scripts\\template\\`，"
+          "合并会打断 Qoder 侧路由。\n"
+          "  **2026-11-15 修**：`D:\\Skills\\webapp-building` 原本丢掉了限制条款，已补 `PROVENANCE.md`。\n")
+tp.append("\n## 五、被排除在 git 远端备份之外的技能\n")
+tp.append("\n下列技能**仍在本地、仍可用，但永远不会被 push**（`.gitignore` 已按目录排除）。"
+          "完整依据与重新取得方式见 `BACKUP_SCOPE.md`。\n")
+tp.append("\n| 技能 | 原因 |\n| --- | --- |\n")
+for d, why in (("docx", "Anthropic 专有：禁止在 Services 之外保留副本、禁止转移第三方"),
+               ("pdf", "同上"), ("pptx", "同上"), ("xlsx", "同上"),
+               ("reverse-trace", "无 LICENSE，PROVENANCE 限定仅本机自用、不二次分发"),
+               ("reverse-wechat-miniapp", "同上"),
+               ("webapp-building", "泄露的 Kimi 产品技能，上游明示没有任何使用许可")):
+    tp.append("| `%s` | %s |\n" % (d, why))
+tp.append("\n**私有仓库不能解决这一条**：上传到托管平台本身就是「转移给第三方」。\n")
+tp.append("\n## 六、已知瑕疵（不编造修补）\n")
+tp.append("\n- `impeccable` frontmatter 写「See NOTICE.md for attribution」，但包内**没有 NOTICE.md**"
+          "（实测目录只有 `SKILL.md`、`_icon.png`、`_skillhub_meta.json`、`references`）。"
+          "上游包自带的断引用，**没有伪造署名文件**。\n")
+tp_text = "".join(tp)
+
+# ---------------- README.md ----------------
+rd = []
+rd.append("# D:\\Skills — 本机 AI 智能体统一技能库\n\n")
+rd.append("所有 Agent 共用这一份技能实体。**本目录是唯一真源**，各工具通过目录联接（Junction）接入。\n\n")
+rd.append("> 本仓库同时是备份：GitHub + GitCode 双远端。恢复方法见文末。\n\n")
+rd.append("## 一、两层结构（默认只开两个）\n\n")
+rd.append("| 目录 | 角色 |\n| --- | --- |\n")
+rd.append("| `D:\\Skills` | **全量库**，%d 个技能实体，唯一真源 |\n" % len(skills))
+rd.append("| `D:\\Skills-active` | **默认窗口**，只放 `headroom` + `skill-router` 两条联接 |\n")
+rd.append("| `D:\\Skills-disabled` | 停用区，不参与自动发现，保留可恢复源文件 |\n\n")
+rd.append("各 Agent 的技能根指向 **`D:\\Skills-active`**，所以任何 Agent 启动时只加载两个技能：\n\n")
+rd.append("1. **`skill-router`** — 判断本次任务需要哪些技能，然后**直接 read `D:\\Skills\\<目录>\\SKILL.md`**。\n")
+rd.append("2. **`headroom`** — 省 token（压缩送进 LLM 的工具输出），常驻代理 `127.0.0.1:8787`。\n\n")
+rd.append("**为什么用「读文件」而不是「改目录」**：多数 Agent 在会话开始时快照技能列表，"
+          "会话中改目录看不见；读文件任何 Agent 都即时生效，而且其他技能的 description 永不进上下文。\n\n")
+rd.append("## 二、当前联接（实测）\n\n")
+rd.append("| Agent 技能根 | 形态 | 指向 |\n| --- | --- | --- |\n")
+ROOTS = [
+    ("Claude Code", r"C:\Users\Admin\.claude\skills"),
+    ("DSH / Agents 规范", r"C:\Users\Admin\.agents\skills"),
+    ("OpenCode", r"C:\Users\Admin\.config\opencode\skills"),
+    ("WorkBuddy 国内版", r"C:\Users\Admin\.workbuddy\skills"),
+    ("WorkBuddy 国际版", r"C:\Users\Admin\.workbuddy-ai\skills"),
+    ("OpenClaw", r"C:\Users\Admin\.openclaw\skills"),
+    ("Codex", r"C:\Users\Admin\.codex\skills"),
+    ("Qoder", r"C:\Users\Admin\.qoder\skills"),
+    ("Qoder CN", r"C:\Users\Admin\.qoder-cn\skills"),
+    ("Herdsman", r"C:\Users\Admin\.herdsman\work\skills"),

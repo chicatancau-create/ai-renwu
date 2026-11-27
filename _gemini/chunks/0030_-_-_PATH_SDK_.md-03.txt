@@ -1,0 +1,4 @@
+  - [[踩坑-本机执行环境六个静默陷阱-PS反引号wmic缺失pythonw无stdout]]（`python3` 坏存根、`uv.exe` 丢失但变量还在）
+  - [[经验-AppData缓存迁D盘复用DSH-Guard核心按组包装]]（`AppData\Roaming\npm` 是活前缀、`UV_CACHE_DIR`/`HF_HOME` 已在 D 盘）
+- 相关分类：`03-通用\04-工程规范与安全`、`03-通用\03-调试与验证`
+- 相关代码、命令或文档：归档 `G:\AIrenwu\01_任务归档\2026-11-25_环境变量体检与整理\`（`01_报告\环境变量体检与整理报告.md`；`02_备份\`：`HKCU_Environment_*.reg`、`HKLM_Environment_*.reg`、`env_snapshot_*.json`、`env_snapshot_*.csv`、三个 fix 脚本）

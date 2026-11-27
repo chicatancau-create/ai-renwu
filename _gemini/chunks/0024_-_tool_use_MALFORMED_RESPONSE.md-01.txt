@@ -1,0 +1,74 @@
+---
+title: "上游中转把多个并行工具调用粘进同一个 tool_use 参数，导致整轮 MALFORMED_RESPONSE"
+date: 2026-11-24
+domain: common
+category: 03-调试与验证
+status: verified
+severity: high
+stack: ["DSH", "DeepSeekRuntime", "cordis", "llm-stream-repair", "TypeScript"]
+tags: ["MALFORMED_RESPONSE", "工具调用", "流式响应", "llm/stream", "插件", "API中转"]
+---
+
+# 问题：DSH 会话反复「本轮运行失败」，报 Tool call 参数 JSON 末尾多出字符
+
+## 一句话结论
+
+中转层（`https://moyucccx.top`，provider `codingplan`）偶发把**同一 step 里的两个并行工具调用粘进同一个 tool_use 块的 arguments 分片流**（`{"a":1}{"b":2}`），DSH 解析该参数串报 `Unexpected non-whitespace character after JSON at position N`，把整个 chunk 流以 `finish{kind:'error', failure:{code:'MALFORMED_RESPONSE'}}` 终止 ⇒ 整轮对话报废、用户只能手打「继续」。写一个 `llm/stream` waterfall 插件，在检测到该错误时给未闭合的工具块补一个 `block-end`（携带**从拼接串里切出的第一个合法 JSON 对象**），并把终止原因改写成 `tool-calls`，即可让该轮继续跑完，且**只执行第一个调用**、由模型自己重发丢失的那个。
+
+## 触发条件与影响
+
+- 项目或功能：DSH（DeepSeekRuntime）所有会话，只要该 step 里有 ≥2 个并行工具调用
+- 环境与版本：DSH 桌面版，profile `desktop`；默认模型 provider `codingplan` / `deepseek-v4.1-flash` / `reasoningEffort: xhigh`（`api: anthropic-messages`，baseURL `https://moyucccx.top`，中转链路 DSH → headroom:8787 → cc-switch:15721 → 上游）
+- 触发条件：上游把两个工具调用的参数增量拼进同一个 `index` 的 `tool-call-delta`，第二个调用**连名字都没有**（流里没有第二个 `block-start`）
+- 影响范围：命中率约 0.09%/步（全库 3265 个含工具调用的步中 3 例），但**每命中一次就整轮中止**；长任务（几十步）实际每天都撞几次，用户体感「老是中断」
+
+## 复现步骤
+
+1. 前置条件：会话里某一步需要并行发起两个工具（例如同时 `read` + `pwsh`）
+2. 操作或命令：正常对话，无需特殊操作；用 `session.v4.jsonl.zstd` 复盘可直接确认
+3. 预期结果：两个工具都执行
+4. 实际结果：`本轮运行失败 Tool call "read": Unexpected non-whitespace character after JSON at position 51 (line 1 column 52)`，turn 结束
+
+## 证据
+
+三例同型（session-ba288472 turn1/turn2、session-82a4f1bb turn1），错误原文：
+
+```
+Tool call "read": Unexpected non-whitespace character after JSON at position 51 (line 1 column 52)
+
+Received arguments:
+{"file_path": "D:\\Skills\\skill-router\\SKILL.md"}{"description": "列出素材文件夹内容", "command": "Get-ChildItem ...
+```
+
+```
+Tool call "send_meme": Unexpected non-whitespace character after JSON at position 28
+Tool call "skill":     Unexpected non-whitespace character after JSON at position 24
+```
+
+流结构（assistant/attempt 记录）：
+
+- 只有 **1 个** `block-start{index:0, blockType:'tool-call'}`
+- 1 组 `tool-call-chunks{index:0, id:'call_00_...', name:'read'}`，其 arguments 分片拼接后是两个完整 JSON 对象**直接相连**
+- 随后直接 `usage` + `finish{reason:{kind:'error', failure:{code:'MALFORMED_RESPONSE'}}}`，**没有 block-end**
+
+会话日志位置与解压：`D:\DevCache\.dsh\sessions\<workspace>\<session>\session.v4.jsonl.zstd` 是多帧 zstd（本例 341 帧），`zlib.zstdDecompressSync` 只解第一帧，必须按魔数 `28 B5 2F FD` 切帧后逐帧解。
+
+反证：全库 909/3265 步是 ≥2 并行工具调用且绝大多数成功 ⇒ **并行调用本身无罪**，问题是上游偶发合并。
+
+第二类中断（另行记录、已由重试兜底）：`502 {"error":"cannot resolve tunnel destination moyucccx.top (ETIMEDOUT) ..."}`，走 `llm/retry`，策略 `["normal",5,["EMPTY_RESPONSE","RATE_LIMIT","SERVER","TIMEOUT","TRANSPORT"],500,10000,0.1]`。
+
+## 根因分析
+
+- 已确认的根因：**上游（中转）把同一 step 的多个并行工具调用合并进一个 tool_use 块**，第二个调用的 `name` 完全丢失，DSH 无从知道第二个工具是什么，只能在「解析参数 JSON」这一步抛 `MALFORMED_RESPONSE` 并终止整轮
+- 排除过的假设：
+  - 「并行工具调用太多」→ 909 步并行多数正常，代价大于收益，否决
+  - 「DSH 的解析器写错」→ `JSON.parse` 对 `{}{}` 报错完全正确，DSH 无 bug
+  - 「内核 asar 源码里能改」→ `D:\DeepSeekRuntime` 对会话进程整目录不可见（`Test-Path`/`icacls`/node `fs` 全失败，非 ACL 问题），且改 asar 会被下次自更新覆盖
+- 问题归属：外部依赖（上游中转）
+
+## 最小修复
+
+写一个 profile 级宿主插件，**不改 app.asar**：`G:\AIrenwu\02_项目代码\dsh-llm-stream-repair\`
+
+- 支点机制（读 `D:\DevCache\.dsh\profiles\desktop\node_modules\@deepseek-ai\dsh-llm\src\assembler.ts:77-84` 与 `:108-121` 确认）：`BlockAssembler` 收到 `block-end` 时 `partial.block = chunk.block`，`assemble()` 首行 `if (partial.block) return partial.block` ⇒ **block-end 携带的 block 是权威值，会覆盖累积的 delta 字符串**。所以补一个 `block-end` 就能把坏 arguments 换成合法 JSON。
+- 接管点：`ctx.on('llm/stream', (options, next) => ...)`（该事件 mode=`waterfall`，签名 `(options, next): AsyncIterable<StreamChunk>`，`next()` 就是下游 adapter 流）。`dsh-llm/src/index.ts:1112-1138` 的 `adapterStream` 把 adapter 迭代异常就地转成终止 chunk、不向上抛，所以监听者一定看得到 `finish`。

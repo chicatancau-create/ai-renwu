@@ -1,0 +1,46 @@
+- [x] 门禁：`svg_quality_checker.py --stage final` → 0 error（返工三轮）
+- [x] 构建：`finalize_svg.py` → 20 images / 23 icons embedded；`svg_to_pptx.py` → 23 slides + notes
+- [x] 启动或手动回归：PowerPoint COM 导出 23 张 PNG，逐页看过（封面、表格页、图表页、章节页）
+- [x] 2026-11-15 回归：10 页版 final gate `10/10 fully passed`，PowerPoint COM `EXPORTED 10`，逐页 PNG 与 contact sheet 复核通过
+- [x] 2026-11-15 清理回归：删除 46 个历史中间件，释放 `59.1 MB`；最新导出、脚本引用和交付件均仍存在
+- [x] flask 预览（2026-11-13 补验）：用户放行后 pip 装 flask 3.1.3（`D:\PyCharm\Python`，import 通过）；原项目缺 `svg_output` 无法直接起，改用最小夹具项目 `G:\AIrenwu\02_项目代码\preview-fixture`（`svg_output\slide_01.svg`）起 `server.py --no-browser --port 8765`，`HTTP GET /` 返回 200、日志「1 slides」，预览机制端到端可用
+
+## 2026-11-15 复验补充
+
+1. **bounds 要按检查器报出的实际文字外框扩，不能只看名义 baseline。**
+   - 现象：`svg_quality_checker.py` 报 `content (977.5, 632.7)-(1216.0, 709.6)`，容器只到 `708.0`，纵向溢出 `1.8%`。
+   - 修复：把模块高度从 `88` 扩到 `92`，重跑 stamp 与 final gate 后 `10/10 fully passed`。
+2. **名义 bounds 落在 720 画布内，PowerPoint 仍可能把文字下沿裁掉。**
+   - 现象：14px 两行页脚的 nominal bottom 正好 720，COM 导出 PNG 中第二行仍贴底并被裁。
+   - 修复：字号降到 12px、基线上移并收紧行距；二次 COM 渲染确认完整显示。
+   - 结论：SVG gate 只能证明几何契约，不能替代真实 PowerPoint 渲染。
+3. **历史导出件、backup 和 validation report 是主要垃圾源。**
+   - 同一工程累积 16 个导出件、16 份 SVG backup、20 份 validation 文件，仅最新一轮需要保留。
+   - 反查 `export_slides.ps1`、交付记录和计划任务后，删除 15 个旧导出、15 个旧 backup、16 个旧 validation 文件，释放 `59.1 MB`；最新导出、最新 backup、当前质量报告和校准文件保留。
+4. **导出成功不等于交付件仍与导出原件一致。**
+   - 2026-11-15 实测：交付件已由用户改为 11 页、`4,640,480` 字节，最新导出原件仍是 10 页、`4,612,778` 字节，MD5 不同。
+   - 清理时绝不能拿旧导出件覆盖交付件；先比页数、大小、MD5，再决定保留哪份。
+
+## 可复用规则
+
+- 用 ppt-master 画 SVG 前，先跑 calibrate 拿到字符率，再按「baseline−0.85×size / +0.35×size + 24px」写 `data-pptx-bounds`；适用条件：1280×720 且有中文正文。例外：纯装饰区。
+- 原生 chart/table 标记写完必须 stamp，且 `row_heights` 含表头行；适用条件：`Native-ready=yes` 的对象。
+- 声称「导出成功」前必须做一次递归形状计数 + COM 导 PNG 目视；不适用：只交付 SVG 预览的任务。
+
+## 适用范围与不适用范围
+
+- 适用：ppt-master 默认生成路线（Default Generate）、flat 结构、含原生图表/表格与图片的中文 deck。
+- 不适用：Edit Native PPTX 的 round-trip 路线（那里 bounds 由还原器决定）；`structured` 模板路线（另有 slot 约束）。
+
+## 剩余风险
+
+- 18 条 `introduced` 级 advisory 警告（多为原生导出对齐细节与段落行合并提示）未逐条消除，只影响 `--native-charts-and-tables` 那条未被使用的导出分支。
+- 未测 LibreOffice / WPS 打开同一文件的排版差异；未测打印（暗底 + chunk-filled 实心态在打印下应可，未验证）。
+- PowerPoint COM 路线已在同一工程的多轮 10 页导出中复现，但仍属于本机 Microsoft Office 版本结论；其他 Office 版本需重新实测。
+- flask 缺失导致预览不可用：**已修**（2026-11-13 用户放行「能修的就修」后 pip 装 flask 3.1.3，最小夹具项目启动预览 HTTP 200 验证）。原「不擅自装依赖」约束经用户明确放行解除。
+
+## 关联
+
+- 相关记录：[[踩坑-沙箱只放行工作区致写E盘被拒且write会抹掉源码BOM]]（同属「写盘与编码」类）
+- 相关分类：03-通用 / 交付取证
+- 相关代码、命令或文档：`D:\QoderToolkit\ppt-master\references\executor-base.md` §3（bounds 与 width estimation）、`references\native-data-interface.md` §2、`G:\AIrenwu\01_任务归档\2026-11-04_影视飓风账号分析\03_工具脚本\export_slides.ps1`

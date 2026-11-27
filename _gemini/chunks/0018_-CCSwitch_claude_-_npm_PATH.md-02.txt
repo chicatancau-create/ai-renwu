@@ -1,0 +1,38 @@
+3. 备份后删除用户变量 `ANTHROPIC_TARGET_API_URL`（备份 JSON 同归档 backup 目录），消横幅并消除「脱离 CC Switch 后仍被钉死到代理端口」的隐患。
+4. 用**注册表实时 PATH**（Machine+User 拼接）重启 CC Switch，使其进程环境看见 D:\agy\bin；taskkill 后立刻 Start-Process，attach 会自动重写客户端配置回路由模式。
+
+## 验证记录
+
+- [x] 格式化或静态检查：不适用（环境修复）。
+- [x] 类型检查或编译：不适用。
+- [x] 单元、集成或端到端测试：`where.exe claude/codex/pi` 各仅 Roaming\npm 两条（无扩展名+.cmd）；`claude --version`=2.1.331、`codex --version`=0.172.0、`pi --version`=1.6.0、`D:\agy\bin\agy.exe --version`=1.5.15。
+- [x] 构建：不适用。
+- [x] 启动或手动回归：CC Switch 4.0.40 重启后应用页截图 ccswitch_final.png：已安装·7 含 Antigravity CLI（D:\agy\bin\agy.exe），三工具单一路径、无报错行、无冲突横幅；日志确认代理 127.0.0.1:15721 启动且 claude/codex attach 回路由。
+- [x] 清理后复查（2026-11-24 09:59）：注册表实时 PATH 下 where.exe claude/codex/pi/agy 均单一入口（agy=D:\agy\bin\agy.exe）；版本 2.1.331 / 0.172.0 / 1.6.0 / 1.5.15；两前缀 *.old.* 递归扫描为空；ANTHROPIC_TARGET_API_URL 用户变量已空；CC Switch pid 40992 日志代理 127.0.0.1:15721 启动、claude/codex attach 路由正常；复查截图 ccswitch_recheck.png 与 ccswitch_final2.png 逐字节一致（界面零回归）。
+- 取证手法：用户活跃时不抢前台——`ShowWindow(hwnd, SW_SHOWNOACTIVATE=4)` 显示隐藏主窗口 + `pwcap.py` PrintWindow 后台抓图（脚本同归档 03_工具脚本\show_noactivate.py）。
+
+## 可复用规则
+
+- CLI 报「不是内部或外部命令」且 cmd 包装存在时：先 Test-Path 包装指向的真实 exe，再看同目录有无 `.old.*` 残骸（自更新中断特征），别先怀疑 PATH 全表。
+- 判「重复安装」：`where.exe` 全清单 + junction 归一（Get-Item 看 LinkType/Target）+ 逐份版本比对；保留与 `npm config get prefix` 一致且最新的那份，其余备份后移走入口与包目录。
+- 给系统加 PATH 后，已运行 GUI（尤其安装检测类）必须用注册表实时 PATH 重启才可见；从老父进程（服务/常驻壳）Start-Process 会继承陈旧环境。
+- CC Switch 的 Antigravity 条目=agy CLI；桌面 IDE 在 4.0.40 走 agy-desktop 独立条目；「装了 IDE 却显示未安装」不是 bug。
+- 删用户环境变量前：grep 消费方（客户端配置目录 + 应用 db）确认冗余，备份 JSON 再删；CC Switch 对 ANTHROPIC/OPENAI/GEMINI/XAI 前缀用户变量一律告警。
+- 本机执行壳注意：工具名 pwsh 实为 PowerShell 5.1，**内层再调 `pwsh` 会 CommandNotFound**；代理端口以实测监听为准（本次 7890，记忆里的 7897 已死）。
+
+## 适用范围与不适用范围
+
+- 适用：Windows 多 npm 前缀遗留、CC Switch 安装检测类误报、agy CLI 官方安装、PATH 变更后 GUI 不刷新。
+- 不适用：macOS launchd 窄 PATH 同类问题（机制同但修法不同，见 issue #9810）；npm 包自身损坏（需重装而非移入口）。
+
+## 剩余风险
+
+- 陈旧前缀备份（1,375,634,939 B）已按用户 2026-11-24「将垃圾清理」授权删除，G 盘释放约 1.30 GB；回滚途径改为 npm 重装旧版（codex@0.169.0、pi@1.5.2，入口 cmd 由 npm 重建），不再依赖本地备份。D:\node-global 与 junction C:\node-global 仍留在 PATH（目录里还有 @motrix/nodemon 等，未动）。
+- agy CLI 尚未登录（凭据目录 ~/.gemini/antigravity-cli 未生成）；登录含账号手机验证，只能用户本人完成。
+- CC Switch 4.0.40 更新说明弹窗在 09:55 截图已消失（已被关掉）；若再弹出点一次「知道了」即可，不影响检测。
+
+## 关联
+
+- 相关记录：[[踩坑-TraeCN自更新改名留旧快捷方式致开始菜单两个Trae实为同一程序]]（自更新残骸同类）、[[规则-CCSwitch接OpenAI兼容网关要四件套配置]]、[[踩坑-杀软断网修复清零系统代理且StateListen过滤假报端口死]]（代理端口实测）。
+- 相关分类：03-通用/03-调试与验证。
+- 相关代码、命令或文档：归档 `G:\AIrenwu\01_任务归档\2026-11-24_CC-Switch重复安装与反重力识别\`（03_工具脚本：move_old_globals.py、show_noactivate.py、db_probe.py、install.cmd、run_install.ps1；04_产物：env 备份 JSON 与前后截图，node-global 备份已按用户授权清理）。

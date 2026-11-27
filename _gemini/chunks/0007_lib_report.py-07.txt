@@ -1,0 +1,86 @@
+    A("- 08-判定题库：`G0`–`G9`（自学自测包）+ `专题题库`（RAG-GoldenSet/SQL50/全英文面试10套/后端实操30）+ `国内大厂真题`（按公司分目录 + `_工具`）+ evidence。")
+    A("- 07-项目实现：仅 README.md（索引），无单元目录。90-历史归档：按日期/来源命名的快照目录。")
+    A("- 单元号体系：U（教学）/E（实验）/G（判定包与毕业实验）/P（项目，实现已外迁）/D（深度路线周次）/MS（整合里程碑，见 09-整合任务）。**编号即知识点定位的现成骨架**，但尚未映射到 frontmatter id。")
+    A("")
+    if D["question_sample"]:
+        A("### 6.1 08-判定题库 题型结构样本（前 %d 行%s）" % (q_lines, "，体积纪律由 40 行截断" if q_lines < 40 else ""))
+        A("")
+        A("`%s`：" % ap(D["question_sample"]["path"]))
+        A("")
+        A(fence(emb(rehead(D["question_sample"]["head"], q_lines)), "markdown"))
+        A("")
+    A("结构补充（实测目录树 + check_student_packages.mjs 门禁要求）：每个 G 包 = README + 自评指南 + 参考答案/ + 起始代码/ + 自测脚本/ + 故障变体/ + evidence/（judge-solution.txt、judge-starter.txt）。题型为「函数题 + 仓库题」，判定方式是可执行断言脚本而非人工阅卷；故障变体要求注入受控缺陷验证自测脚本会失败（mutation testing 思路）。")
+    A("")
+
+    # ================= 7 scripts 与 CI =================
+    A("## 7. scripts/ 目录与 CI 现状")
+    A("")
+    A("### 7.1 scripts/（3 个文件，无 build-index 类脚本）")
+    A("")
+    A("| 文件 | 大小 | 用途（据前 30 行实测归纳） |")
+    A("| --- | --- | --- |")
+    for s in D["scripts"]:
+        A("| `%s` | %s | %s |" % (ap("scripts/" + s["name"]), S.fmt_size(s["size"]),
+                                   SCRIPT_PURPOSE.get(s["name"], "未确认（未读）")))
+    A("")
+    A("**`scripts/build-index.js` 不存在**（实测）。相关工具另有两个（实测存在）：`%s`（manifest 生成/校验，被 verify_archive.sh 以 `node ../_template/manifest.mjs verify evidence/manifest.json` 调用）、`%s`（05 目录 source-only 校验，被 verify_all.mjs 调用）。" % (
+        ap("06-实验代码/_template/manifest.mjs"), ap("05-外部资料库/tools/catalog_tool.py")))
+    A("")
+    if script_heads:
+        A("各脚本前 30 行原文（证据）：")
+        A("")
+        for s in D["scripts"]:
+            A("`%s`：" % ap("scripts/" + s["name"]))
+            A("")
+            A(fence(emb(s["head"]), "javascript" if s["name"].endswith(".mjs") else "bash"))
+            A("")
+    else:
+        A("（各脚本前 30 行已实际读取用于判断上表用途；原文因体积纪律不嵌入，可用 `_lib_scan.py` 复现。）")
+        A("")
+    A("### 7.2 .github/workflows（12 个，全部列出）")
+    A("")
+    A("| 文件 | 大小 |")
+    A("| --- | --- |")
+    for w in D["workflows"]:
+        A("| `%s` | %s |" % (ap(".github/workflows/" + w["name"]), S.fmt_size(w["size"])))
+    A("")
+    A("CI 实况（文档宣称，原文见第 4 节 README 与附录 A）：12 个根 workflow **均未在 GitHub Actions 实跑**；2026-11-08 起 Actions 计费阻断，新 run 的 job 不执行（steps=0），annotation 原文 “recent account payments have failed or spending limit needs to be increased”。因此 2026-11-08 之后所有提交都没有云端验证；「全绿」只指本机门禁。本次扫描未查询 GitHub API，run 历史**未确认**。")
+    A("")
+    for w in D["workflows"]:
+        wpath = w["name"] if wf_short else ap(".github/workflows/" + w["name"])
+        if w["verify"]:
+            A("#### `%s`（全文，%s；完整路径见上表）" % (wpath, S.fmt_size(w["size"])))
+            A("")
+            A(fence(emb(w["text"]), "yaml"))
+        else:
+            A("#### `%s`（前 %d 行；完整路径见上表）" % (wpath, wf_lines))
+            A("")
+            A(fence(emb(rehead(w["text"], wf_lines)), "yaml"))
+        A("")
+    A("### 7.3 .workbuddy（只记录存在与线索，未读内容）")
+    A("")
+    A("存在。文件清单（实测）：%s。按目录名与文件命名推断为 AI 工作助手（WorkBuddy）的会话记忆/工作日志（每日一篇 + MEMORY.md 汇总）；`.gitignore` 将其整体排除，注释原文「AI 会话记忆含本机路径与会话元数据，不纳入版本控制」。用途为**推断**，内容未读取（任务要求不 dump）。" % (
+        "、".join("`%s`(%s)" % (p, S.fmt_size(s)) for p, s in D["workbuddy_files"])))
+    A("")
+
+    # ================= 8 同地性 =================
+    A("## 8. 代码与笔记的同地性现状")
+    A("")
+    A("### 8.1 06-实验代码：同目录自包含（已符合 Colocation 精神）")
+    A("")
+    A("单元清单（md/代码计数，实测）：")
+    A("")
+    A("| 单元 | md | 代码 |")
+    A("| --- | --- | --- |")
+    for sub, m, c in D["colocation"]["06-实验代码"]["units"]:
+        A("| %s | %d | %d |" % (sub, m, c))
+    A("")
+    colo = D["colocation"]["06-实验代码"]
+    A("典型单元 `%s` 文件列表（%d 个文件%s；相对 06-实验代码）：" % (
+        ap("06-实验代码/" + colo["chosen"]), len(colo["files"]),
+        "，采集上限 40，可能截断" if len(colo["files"]) >= 40 else "，完整"))
+    A("")
+    A("```")
+    for f, s in colo["files"][:colo_cap]:
+        A("%s  %s" % (f, S.fmt_size(s)))
+    if len(colo["files"]) > colo_cap:

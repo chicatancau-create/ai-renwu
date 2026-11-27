@@ -1,0 +1,73 @@
+---
+title: CapCut 国际版草稿自动化：pycapcut 建草稿 + vosk 离线字幕流水线
+date: 2026-11-20
+domain: common
+category: 调试与验证
+status: verified
+severity: low
+stack: [CapCut 9.8.0.4213, pycapcut 0.0.4, pyJianYingDraft 0.3.1, vosk 0.3.45, Python 3.12.14, ffmpeg 9.0.2]
+tags: [CapCut, 剪映国际版, 草稿自动化, pycapcut, vosk, ASR, 字幕, vlog]
+---
+
+# CapCut 国际版草稿自动化：pycapcut 建草稿 + vosk 离线字幕流水线
+
+## 一句话结论
+
+本机 CapCut 国际版 9.8.0.4213 可用 **pycapcut 0.0.4**（pyJianYingDraft 的 CapCut 移植）在草稿目录直接生成含视频+字幕的草稿（文件级 + CapCut 首页识别已验证）；字幕用 **vosk 0.3.45 + small-cn 模型**离线识别（真实中文语音逐字命中已验证）；口语素材小模型几乎全错时换 **vosk-model-cn-0.22 大模型**（1.26GB，hf-mirror.com 镜像约 8MB/s，alphacephei 直连仅 850KB/s），识别质量可用。装库必须用自带 Python 3.12，别用 D:\PyCharm 的 3.15（无 vosk wheel 会挂死在源码编译）。
+
+## 触发条件与影响
+
+- 要用脚本/AI 替用户剪 CapCut（国际版）视频、批量加字幕、按镜头表生成草稿时。
+- 选错库（pyJianYingDraft 面向国内剪映）或错解释器（3.15）会直接失败或挂起 >240s。
+
+## 复现步骤（安装，全部零成本）
+
+```powershell
+# 1) 库装到 D 盘独立目录（不污染全局），用自带 3.12 + 阿里云镜像
+& 'C:\Users\Admin\.dsh\dsh-runtimes\dsh-primary-runtime\dependencies\python\python.exe' -m pip install --target D:\AI-Tool-State\vlog-tools\pylibs -i https://mirrors.aliyun.com/pypi/simple/ pycapcut pyJianYingDraft vosk
+# 2) vosk 中文小模型（41.86MB，curl 下载，zip 用 Expand-Archive）
+curl.exe -L -o D:\Models\_archives\vosk-model-small-cn-0.22.zip https://alphacephei.com/vosk/models/vosk-model-small-cn-0.22.zip
+Expand-Archive D:\Models\_archives\vosk-model-small-cn-0.22.zip D:\Models\   # 用户规定：模型统一放 D:\Models（2026-11-22 m01482）
+# 3) 运行时设 PYTHONPATH
+$env:PYTHONPATH='D:\AI-Tool-State\vlog-tools\pylibs'
+```
+
+## 证据
+
+- 探针草稿：`C:\Users\Admin\AppData\Local\CapCut\User Data\Projects\com.lveditor.draft\AI工具链自检\`（draft_content.json 31 键、draft_meta_info.json 37 键，tracks=[video×1, text×1]，duration=6000000µs，素材路径正确）。
+- 脚本与自测输出：`G:\AIrenwu\01_任务归档\2026-11-20_平静vlog剪辑\03_工具脚本\{probe_capcut_draft.py, asr_to_srt.py}`、`02_证据日志\{asr_selftest.srt, asr_tts_selftest.srt}`。
+- ASR 真实语音验证：SAPI TTS（Microsoft Huihui Desktop zh-CN）说「今天天气真好，阳台的薄荷长出了新芽。」→ vosk 识别 10 词逐字命中，SRT `00:00:00,090 --> 00:00:04,170`。
+
+## 根因分析（选型与坑）
+
+1. **pyJianYingDraft 面向国内剪映**：剪映 6+ 加密 draft_content.json（模板模式只支持 ≤5.9）；CapCut 国际版草稿不加密但结构不同（9.x 多时间线：根 draft_content.json 兼容态 + draft_meta_info.json + Timelines/）。pycapcut（github.com/GuanYixuan/pyCapCut）是专门移植，实测生成的草稿文件结构完整。
+2. **Python 3.15 装 vosk 挂起**：无预编译 wheel → pip 落源码编译，>240s 无输出（job 已 kill）。自带 DSH Python 3.12.14 有 wheel，秒装。
+3. **字体 path="D:" 不是 bug**：pycapcut text_segment.py:421 故意写占位路径（注释「字体占位路径，与花字的 C: 分开，避免解析路径时被错误拼接」），CapCut 按 resource_id 解析字体。FontType 枚举含免费中文字体（圆体/宋体/中黑体/快乐体/悠然体等，font_meta.py:138-169）。
+4. **脚本 docstring 含 C:\Users 报 SyntaxError**：`(unicode error) 'unicodeescape' ... truncated \UXXXXXXXX escape`（\U 被当 unicode 转义）→ docstring 用 r"""。
+
+## 最小修复（API 速查）
+
+```python
+from pycapcut import DraftFolder, TrackType, VideoMaterial, VideoSegment, TextSegment, FontType, trange_seconds
+folder = DraftFolder(r"C:\Users\Admin\AppData\Local\CapCut\User Data\Projects\com.lveditor.draft")
+script = folder.create_draft("草稿名", 1080, 1920, fps=30)   # 自动铺 draft_meta_info.json
+script.add_track(TrackType.video)
+script.add_track(TrackType.text)
+mat = VideoMaterial(r"素材.mp4")                              # pymediainfo 读时长，单位 µs
+script.add_segment(VideoSegment(mat, trange_seconds(0, 6)))
+script.add_segment(TextSegment("字幕", trange_seconds(0, 6), font=FontType.圆体))
+script.save()                                                 # 写 draft_content.json
+```
+
+ASR：`python -X utf8 asr_to_srt.py <输入视频/音频> <输出.srt>`（ffmpeg 抽 16kHz 单声道 wav → KaldiRecognizer(SetWords=True) 逐词 → 按 16 字/0.6s 停顿断句 → SRT）。
+
+## 验证记录
+
+- [x] 三库 import 全 ok（PYTHONPATH=pylibs，3.12）。
+- [x] 探针草稿文件级断言 PROBE OK（键数/轨道/素材路径/时长）。
+- [x] ASR 静音素材 → 0 词正常；TTS 真实中文语音 → 逐字命中。
+- [x] CapCut GUI 首页识别草稿：用户空闲时启动 CapCut，环境检测弹窗（「您的电脑可以流畅使用CapCut」）自动通过，首页「草稿」区列出「AI工具链自检」（截图 `G:\AIrenwu\01_任务归档\2026-11-20_平静vlog剪辑\02_证据日志\capcut_main.png`）。验证后 WM_CLOSE 关闭 CapCut 恢复原样。
+- [ ] 双击草稿进编辑器看时间线渲染 —— **未执行**：正要双击时用户回到活跃状态（USER_ACTIVE），按 windows-gui-control 规则让路；留待下次空闲补验。
+
+## 可复用规则
+

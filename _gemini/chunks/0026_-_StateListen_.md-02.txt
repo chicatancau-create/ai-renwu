@@ -1,0 +1,42 @@
+- [x] 修复前基线：`ProxyEnable=0`、7897 有监听、直连 200、`git ls-remote` 因走 7897 而可用（代理进程活着，只是系统代理关了）
+- [x] 改后注册表回读：`ProxyEnable=1`
+- [x] 端到端：`github 200` / `generate_204` / `youtube 200` / 直连 `baidu 200`
+- [x] 真实消费者：`git ls-remote --heads origin`（E:\fullstack-code，经 `http.https://github.com.proxy`）rc=0
+- [x] 一键修复件在健康态复跑：无副作用、结论正确、日志可读（UTF-8）
+- [ ] 未验证：不点杀软断网修复就无法制造同样故障复现；本轮只做了"症状—根因—修复"闭环，未重复触发杀软
+
+## 可复用规则
+
+1. **判 TCP 端口死活**：`Get-NetTCPConnection -LocalPort N`（不加 `-State`），看有没有条目 + `OwningProcess`；
+   本机对 `::` 双栈监听 `State` 会是空值，`-State Listen` 恒得 0 条。要更稳就直接 `curl -x http://127.0.0.1:N <需要代理的站点>`。
+2. **"直连通、走代理不通"只查三样**：`ProxyEnable` → `ProxyServer` 是否还在 → 代理端口是否有人监听。
+   不要动 DNS、不要重启内核、不要怀疑驱动。
+3. **网络"老出问题"先做时间对齐**：把 `WLAN-AutoConfig/Operational` 的 8001/8002/8011 与
+   `Power-Troubleshooter` Id=1（唤醒）比对时刻；**贴着唤醒的是正常重连**，不贴唤醒而贴着
+   `System 10002（WLAN 扩展模块已停止）`/`NDIS 10400/10317` 的才是要查的异常，再看它贴着哪个第三方软件的操作时间。
+4. **动过第三方"修复"类工具之后**，必须回读它可能改的项：`ProxyEnable`、各网卡 DNS、`netsh winsock reset` 痕迹；
+   它报错面板上的"修复中/已修复"不能当"没改坏"的证据。
+5. `Resolve-DnsName` 不要带 `-Timeout`（本 build 无此参数，会在 3ms 内抛 `NamedParameterNotFound`）；
+   要限时用 `nslookup -timeout=N -retry=1 <host> <server>`。
+
+## 适用范围与不适用范围
+
+- 适用：Windows 11 上用 WinINET 系统代理 + 本地代理软件（Clash/v2ray 类）的桌面机；判"到底哪一层断了"的分层取证。
+- 不适用：程序自己配了代理（如 git `http.<url>.proxy`、环境变量 `HTTPS_PROXY`）时，`ProxyEnable` 与它无关；
+  纯直连环境、代理浏览器插件（SwitchyOmega 类）不适用第 2 条。
+
+## 本机痕迹（非通用经验，仅作记录）
+
+- 待你决定的两项预防（都改网卡配置，我没动）：
+  MT7922 高级属性 `LowPowerEnable=Auto`、`RoamIndicateTh=5.中高` 可改成节能关闭 / 漫游门槛最低，
+  代价是**笔记本耗电增加**；小米手机 USB 共享上网（`VID_2717&PID_FF88`）的 RNDIS 适配器今日本已重置 10 次。
+- 脚本与日志：`G:\AIrenwu\01_任务归档\2026-11-03_后台进程盘点\03_工具脚本\{网络一键修复.ps1,.bat,net_stability_readonly.ps1,net_stability_readonly2.ps1,restore_system_proxy.ps1}`、
+  `02_证据日志\{恢复系统代理开关.txt,网络稳定性体检-只读.txt,网络稳定性体检2-只读.txt,网络一键修复.txt}`。
+- `03_工具脚本\verge_recover.ps1` 本轮**未执行**（服务模式判据通过，不需要）。
+
+## 补充：2026-11-13 再确认（FlClash 7890 同款；客户端 State 过滤一样漏）
+
+- 清理 clash 残留目录前后判代理健康：`Get-NetTCPConnection -LocalPort 7890 -State Listen` 得 0 条；去掉 `-State` 参数但客户端仍 `Where-Object State -eq 'Listen'` **还是 0 条**——一度误写成「表本身漏监听者」（未正确验证就下结论，违反判据纪律，已当场纠正）。
+- 完全不带 State 筛选的原始查询证实机制与本记录根因 2 一致：监听条目**在表里**（`LocalAddress=:: LocalPort=7890 OwningProcess=39896`=FlClashCore），**State 列为空**。新增细化：**任何按 State 的过滤都等价地坏**——cmdlet `-State Listen` 参数与客户端 `Where-Object State -eq 'Listen'` 一样漏；「不加 -State」必须理解为**完全不按 State 筛**，只看条目存在性 + OwningProcess。
+- 金标准复验：`Test-NetConnection 127.0.0.1 -Port 7890` → TcpTestSucceeded=True（真实握手）；删除目录后 `git ls-remote`（GitCode 真实 remote、直连）rc=0。端口一直活着，判据命令自己骗人的模式在 FlClash/7890 上再次应验。
+- 工程落地：`clash-cleanup-worker.ps1` / `clash-cleanup-precheck.ps1` 的端口健康检查已改用真实 TCP 测试（Test-NetConnection），不依赖 State；脚本已入 ai-renwu 仓库。

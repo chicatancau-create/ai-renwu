@@ -1,0 +1,49 @@
+[System.IO.File]::WriteAllText($p, $clean, (New-Object System.Text.UTF8Encoding($false)))
+```
+
+2. 复检首字节并解析：
+
+```powershell
+$b = [System.IO.File]::ReadAllBytes($p); ($b[0..2] | % { $_.ToString('X2') }) -join ' '   # 期望 7B 0D 0A
+(Get-Content -LiteralPath $p -Raw -Encoding UTF8 | ConvertFrom-Json).version
+```
+
+3. 用内核自己的加载器确认 bundle 回来了（不要把"重启看看"当验证）：
+
+```powershell
+$env:ELECTRON_RUN_AS_NODE='1'; $env:DSH_HOME='D:\DevCache\.dsh'
+& 'D:\DeepSeek Harness\DeepSeek Harness.exe' '<诊断脚本>.js'   # 见上面"证据"里的 loadProfileDirectory + composeEntries 用法
+```
+
+4. 同批检查其它被 PowerShell 写过的插件文件：`package.json` 最要紧（JSON），`*.yml` 有 BOM 时 js-yaml 不影响，但 `*.json` 一律有害。
+
+## 验证记录
+
+- BOM 前：`skippedBundles` 含 `@local/archived-cleanup | SyntaxError: Unexpected token '﻿'`，组合条目 237，`archived 条目: []`。
+- BOM 后：`skippedBundles` 2（与本次无关的两个 subagent 版本不匹配项），组合条目 238，`archived 条目` 命中，`重复 id: []`。
+- 运行时无重启生效：`sidebar.footer.action` occupants 重新包含 `archived-cleanup.clear-all`；`workspace.json` 15:41:54 被改写、`archivedSessionIds` 为空（扫尾清掉了两个幽灵 id）。
+- 备份：`<插件>\package.json.bom-bak-20261120`。
+
+## 可复用规则
+
+1. 在 Windows 上用 PowerShell 改**任何** `*.json`（尤其插件/配置文件），改完必须验首三字节；`Set-Content -Encoding UTF8`（PS 5.1）会加 BOM，用 `[System.IO.File]::WriteAllText(..., UTF8Encoding($false))` 或 `write` 工具。
+2. "插件在 DSH 里整体消失"的排查顺序：内核 `loadProfileDirectory` 的 `skippedBundles` → 文件字节（BOM）→ JSON 能否 parse → 再谈代码。
+3. 别用"重启后还没好"当作代码有 bug 的证据：先证明 bundle 被组合进去了（条目数、`archived 条目`、`重复 id`）。
+4. `cordis.patch.yml` 里查不到某个插件名，不等于它没配置——bundle patch 是另一层；手工往 profile patch 里补同一条会造成重复插入风险，先修 bundle 可读性。
+5. GUI 启动时的 `stderr` 诊断没人看：任何"静默跳过"型诊断，都要有等价的离线复现脚本。
+
+## 适用范围与不适用范围
+
+- 适用：DSH 自定义插件（bundle patch 形式）、`package.json` 被 PowerShell/编辑器改过的场景、Electron asar 内的 `dsh-app-boot` 诊断。
+- 不适用：官方 `@deepseek-ai/*` 包（安装时由 pnpm 写入，一般无 BOM）；`requirements` 版本不匹配导致的 skip（另一条 reason，需要版本豁免或升级）。
+
+## 剩余风险
+
+- 其它被 PowerShell 写过的插件配置文件可能仍带 BOM（本次只查了 `archived-cleanup` 的 4 个文件）。
+- `dsh --profile desktop --dump-config` 不可用，离线诊断必须走 `loadProfileDirectory` 脚本，脚本与内核版本绑定（当前 0.2.2-rc.5 的 `app-boot` 导出 `loadProfileDirectory` / `composeEntries` / `readProfilePatches`）。
+
+## 关联
+
+- [[踩坑-DSH启动弹黑框等按键-守卫pause叠加遗留中间态目录]]
+- [[踩坑-PowerShell写配置带UTF8BOM让Go程序静默读不到并一层掩盖一层]]
+- [[规则-本地手册接入DSH成为默认前置与写Markdown的编码坑]]

@@ -1,0 +1,42 @@
+- 剪映系草稿自动化先分国内/国际：国内剪映→pyJianYingDraft（≤5.9 模板模式；11.x 加密可试 PyPI jianying-tool 的 videoeditor.dll 适配器）；CapCut 国际版→pycapcut。
+- 装带 C 扩展的库（vosk 等）先确认解释器版本有 wheel；本机首选自带 3.12，pip 加阿里云镜像 + --target 独立目录。
+- 大模型/素材下载用 curl.exe -L，zip 用 Expand-Archive（本机解包只有 WinRAR UnRAR）。
+- 离线中文 ASR 验证不必找真人录音：SAPI TTS（Huihui zh-CN 已装）生成标准语音即可闭环自测。
+
+## 适用范围与不适用范围
+
+- 适用：CapCut 国际版 9.8.0.4213（本机实测版本）新建草稿、视频/文本/音频轨、离线字幕。
+- 不适用/未证：CapCut 云草稿（com.lveditor.cloud.draft_* 目录结构未探）；特效未逐一实测；转场/音频轨/alpha 关键帧结构断言+ffmpeg 代理整片审查通过（v3），但 CapCut 编辑器内渲染未目视（首页识别已过）；国内剪映加密草稿。
+
+## 剩余风险
+
+- 首页已识别精剪草稿「有花有草_精剪」（2026-11-21，截图 `G:\AIrenwu\01_任务归档\2026-11-20_平静vlog剪辑\02_证据日志\capcut_home7.png`）；编辑器内打开被合成输入怪癖挡住（见下条），待真实鼠标或空闲重试。
+- CapCut GUI 合成输入怪癖（2026-11-21 实测）：①菜单弹层是独立全屏 Qt 窗口，鼠标注入点击穿透无效，键盘方向键+回车可用（菜单打开后 DOWN×8+ENTER=返回首页，DOWN×7+ENTER=全局设置）；②首页草稿卡片对单击/双击注入、PostMessage WM_LBUTTONDBLCLK 均无反应，UIA 控件树为空（Qt/CEF 未暴露 accessibility）→ 首页开草稿只能真实鼠标；③编辑器主窗口的鼠标注入曾生效（播放/暂停、菜单按钮），怪癖集中在弹层与首页。
+- GUI 脚本两个坑：①执行策略拒 unsigned .ps1 → `powershell.exe -NoProfile -ExecutionPolicy Bypass -File`；②`$idle = & useridle.py` 收到的是行数组，`$idle -notmatch 'USER_IDLE'` 按元素过滤返回非空数组恒真 → 必须先 `-join ' '`。
+- vosk 小模型无标点、专有名词易错，字幕须人工过一遍；嘈杂环境识别率未测。
+- CapCut 升级可能改草稿结构，用前复核版本。
+
+## v2 补充（2026-11-21 晚，《平凡的一天》重剪）
+
+- 转场：`VideoSegment.add_transition(TransitionType.叠化, duration=800000)`（video_segment.py:602）→ materials.transitions 3 条结构 OK；叠化免费（transition_meta.py:53）。
+- 音频轨：`AudioSegment(AudioMaterial(path), trange(target_start, dur), source_timerange=trange(src, dur), volume=…)` + `add_fade`（audio_segment.py:166）；**AudioMaterial 拒视频容器**（local_materials.py:218 有视频轨即 ValueError）→ 先 ffmpeg 抽音轨（`-vn -acodec copy` 得 m4a 无损，或 wav）。
+- 旁白去停顿：ffmpeg `silencedetect=noise=-35dB:d=0.5` 拿静音区间，≥0.8s 停顿切块剔除、块间留 0.12s 气口；配合大模型 ASR 剔絮语块。
+- plan 生成单位坑：累计函数返回 µs 而字幕偏移用秒，混加得 target start=base_us*1e6+offset（如 4000000296667）；make_plan 加断言 `0<=start<us(total)` 防再犯。
+- 本机网络音源实测：commons.wikimedia.org 连接重置；incompetech.com 挂起；github.com/raw 302 后 raw.githubusercontent 挂起；pixabay 403（Cloudflare）；**codeload.github.com 整仓 zip 可用**（158MB 约 40s）。CC-BY 曲目发布简介必须带署名行。
+
+## v3 补充（2026-11-21 夜，整片审查法）
+
+- **不开 CapCut 也能整片审查**：`review_render.py` 按 edit_plan 用 ffmpeg 代理复现（竖屏=split+gblur sigma25 背景+scale=-2:1080 前景 overlay 模拟画布模糊；叠化除外=硬切；逐段 `-frames:v round(dur*30)` 防 fps 滤镜每段+2帧漂移）→ concat → numpy 精确摆旁白轨（块边界跳变>0.15 报爆音）→ amix normalize=0 → subtitles 烧字（**filter 里路径带盘符冒号会解析炸，改 cwd+相对文件名**）→ 接触表 fps=1 tile + 边界帧 select eq(n\,X) + 每 10s RMS/峰值 → 大模型 ASR 听 mix.wav 对照字幕查听感。
+- ffmpeg 9 无 `-vsync`，用 `-fps_mode passthrough`；ffprobe 取旋转要 `-show_entries stream=width,height:stream_side_data=rotation`（`stream=side_data_list` 不返回），编码横+rotation90=竖屏显示，漏判会把脸拉扁。
+- 审查实测问题类型（v2→v3 已修）：①A-roll 中段絮语 ASR 听不清→该段静音保画面；②同机位跳切（剪口误跳过 1s）→0.5s 叠化遮；③B-roll 画外音碎语与旁白重叠→结尾段静音；④电平不齐（旁白 RMS 0.04 vs 现场人声 0.11，差约 9dB）→旁白/宿舍 1.8、现场 0.8、环境 0.4，峰值 0.875→0.703；⑤旁白长段无字幕（开场 13s 空窗）→补字幕；⑥同镜头续接处加叠化=鬼影→去掉。
+- 字幕重叠坑：pycapcut `Track.add_segment` 抛 `SegmentOverlap`（track.py:118）；相邻旁白块字幕时长不得超过块间隔+块长，合并短句为一条更稳。
+- 代理不还原草稿的字幕位置/字号（libass 默认底部）与叠化→这两项仍须 CapCut 编辑器目视，别把代理现象当草稿缺陷。
+
+## v4 补充（2026-11-22，原片升级 + 不依赖编辑器的成品导出）
+
+- **剪映专业版/CapCut PC 转场语义：总时长不变**。切点居中 D/2 重叠：片段边缘外有余量(handle)就用余量，没有就「添加重复帧创建转场」冻结补（[vsx10.com/a/1396.html](http://www.vsx10.com/a/1396.html)）；移动端剪映才会吞时长（[知乎](https://www.zhihu.com/question/574909305)）。→ 草稿里按绝对时间摆旁白/字幕在 PC 版不会因转场错位；ffmpeg 复现时给每段补 D/2 头尾（handle 或 tpad clone），xfade offset=切点-D/2，总长不变。
+- ffmpeg xfade 混链坑：concat 输出 timebase 1/1000000 与 mp4 解复用 1/15360 不一致报 `First input link main timebase (1/1000000) do not match ... xfade timebase (1/15360)` → 每个输入与每级输出都 `settb=AVTB` 归一。
+- 换音轨源对齐：同一次录音的压缩版与原版用时移 δ 对齐——两版各跑 silencedetect，静音锚点差值取中位数（本例 27 锚点 δ=-0.0427s），chunks 整体平移即可，不必重跑 ASR。
+- 过曝源素材调色副本：`eq=contrast=1.08:saturation=1.15:brightness=-0.03` + crf18 重编码，草稿改指副本；原件不动、可回滚。
+- CapCut 删草稿进 `草稿根\.recycle_bin\<名>`（含 (1)/(2) 副本），可恢复；发现草稿「消失」先查回收站再下结论。
+- GUI 第 4 种开草稿法也失败：首页键盘 TAB+ENTER 开出 0,0 全屏**卡死白窗**（PrintWindow 与真实截屏均纯白，40s 无内容）→ WM_CLOSE 关掉恢复首页。结论不变：首页开草稿只能真实鼠标。

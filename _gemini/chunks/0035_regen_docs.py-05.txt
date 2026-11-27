@@ -1,0 +1,42 @@
+          "（本机 = `D:\\AI-Tool-State`）。\n")
+rd.append("4. 第三方技能必须留 `PROVENANCE.md`（来源 / commit / 许可）；许可未知的标注清楚。\n")
+rd.append("5. 新增或改动后跑 `python D:\\Skills\\skill-router\\router.py sync` 重建索引。\n")
+rd.append("6. 不把框架 / 运行时 / 数据库 / 安全清单的版本写死；已有项目以仓库配置与锁文件为准。\n\n")
+rd.append("## 七、日常运维\n\n")
+rd.append("```powershell\n")
+rd.append("$py = 'C:\\Users\\Admin\\.dsh\\dsh-runtimes\\dsh-primary-runtime\\dependencies\\python\\python.exe'\n")
+rd.append("& $py D:\\Skills\\skill-router\\ops.py status    # 代理 / 接线 / 窗口 / 12 个技能根\n")
+rd.append("& $py D:\\Skills\\skill-router\\ops.py savings   # headroom 真实省了多少\n")
+rd.append("& $py D:\\Skills\\skill-router\\ops.py guard     # 接线守护\n")
+rd.append("& $py D:\\Skills\\skill-router\\ops.py shield    # 自愈盾\n")
+rd.append("& $py D:\\Skills\\skill-router\\router.py match \"这次任务描述\"\n")
+rd.append("& $py D:\\Skills\\skill-router\\router.py doctor\n")
+rd.append("```\n\n")
+rd.append("## 八、从 git 恢复\n\n")
+rd.append("```powershell\n")
+rd.append("git clone https://github.com/chicatancau-create/ai-skills.git D:\\Skills\n")
+rd.append("# 国内：git clone https://gitcode.com/zhoumoyukuai/ai-skills.git D:\\Skills\n")
+rd.append("& $py D:\\Skills\\skill-router\\wire_agents.py --apply   # 重建默认窗口与各 Agent 联接\n")
+rd.append("& $py D:\\Skills\\skill-router\\router.py sync\n")
+rd.append("& $py D:\\Skills\\skill-router\\ops.py wire --apply      # 接回 headroom 省 token 链路\n")
+rd.append("```\n\n")
+rd.append("**注意**：`headroom` 的常驻代理与模型缓存不在本仓库里"
+          "（`D:\\uv\\tools\\headroom-ai`、`D:\\uv\\data\\huggingface\\hub` 那 261 MB），"
+          "恢复后需重跑 `seed_kompress.py` 与 `headroom install apply`，命令见 `headroom\\SKILL.md`。\n")
+rd_text = "".join(rd)
+
+for rel, text in (("THIRD_PARTY.md", tp_text), ("README.md", rd_text)):
+    p = os.path.join(LIB, rel)
+    old = open(p, encoding="utf-8").read() if os.path.isfile(p) else ""
+    print("\n%s %s  (%d -> %d B)" % ("WRITE" if APPLY else "would write", rel,
+                                     len(old.encode()), len(text.encode())))
+    if APPLY:
+        if os.path.isfile(p):
+            bk = r"G:\AIrenwu\_audit\optimize-backup-20261115-023537"
+            os.makedirs(bk, exist_ok=True)
+            import shutil
+            shutil.copy2(p, os.path.join(bk, rel))
+        with open(p, "w", encoding="utf-8", newline="\n") as f:
+            f.write(text)
+if not APPLY:
+    print("\nDRY RUN - rerun with --apply")

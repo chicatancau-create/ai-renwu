@@ -1,0 +1,89 @@
+    ("网页端\\项目\\server\\README.md", None),
+    ("网页端\\项目\\deploy\\README.md", None),
+    ("网页端\\项目\\src\\content\\README-attachments.md", "attach"),
+    ("网页端\\项目\\src\\design\\README.md", "design"),
+]
+known_set = {r for r, _ in KNOWN_READMES}
+all_readmes, evidence_readmes, sdk_readmes, flagged = [], [], [], []
+for base, dirs, files in walk_dirs(ROOT):
+    for f in files:
+        if f.lower().startswith("readme") and f.lower().endswith(".md"):
+            rel = os.path.relpath(os.path.join(base, f), ROOT)
+            all_readmes.append(rel)
+            if rel in known_set:
+                continue
+            if "\\开发环境\\" in rel:
+                sdk_readmes.append(rel)
+            elif "\\验收证据\\" in rel:
+                evidence_readmes.append(rel)
+            else:
+                flagged.append(rel)
+evidence_readmes.sort()
+
+# ---------- 统计 ----------
+top_counts = {}
+for e in sorted(os.scandir(ROOT), key=lambda x: x.name):
+    if e.is_dir() and e.name not in EXCLUDE and e.name not in PRIVACY:
+        top_counts[e.name] = count_files(e.path)
+total_files = sum(len(f) for _, _, f in walk_dirs(ROOT))
+privacy_counts = {n: count_files(os.path.join(ROOT, n)) for n in sorted(PRIVACY) if os.path.isdir(os.path.join(ROOT, n))}
+
+catalog_lines = [ln for ln in lines_of("应用端\\项目\\native\\content\\catalog.v1.tsv") if ln.strip()]
+def hexdec(h):
+    try:
+        return bytes.fromhex(h).decode("utf-8")
+    except Exception:
+        return "?"
+cat_first = catalog_lines[0].split("\t") if catalog_lines else []
+cat_decoded = " / ".join(hexdec(x) for x in cat_first[:4]) if cat_first else ""
+
+# ---------- 技术栈证据行 ----------
+W = "网页端\\项目\\package.json"
+A = "应用端\\项目\\package.json"
+M = "移动端\\项目\\build.gradle.kts"
+MA = "移动端\\项目\\mobile-app\\build.gradle.kts"
+EV = {
+    "react": ref(W, '"react"'), "vite": ref(W, '"vite"'), "ts": ref(W, '"typescript"'),
+    "vitest": ref(W, '"vitest"'), "appdesc": ref(A, '"description"'),
+    "agp": ref(M, "com.android.application"), "kotlin": ref(M, "kotlin"),
+    "compilesdk": ref(MA, "compileSdk"), "material3": ref(MA, "material3"),
+    "cxx23": ref("应用端\\项目\\native\\CMakeLists.txt", "CMAKE_CXX_STANDARD 23"),
+    "entry": ref("网页端\\项目\\index.html", "src/main.tsx"),
+}
+
+GITIGNORE_KEYS = ["node_modules", ".env", "*.local", "pfx", "p12", "*.key", "工作区", ".claude", ".local",
+                  "开发环境", "构建产物", "启动", "server/data", "workspace", ".apk", ".exe", ".gradle"]
+def gitignore_excerpt(cap=22):
+    out, seen = [], set()
+    for i, ln in enumerate(lines_of(".gitignore"), 1):
+        if any(k in ln for k in GITIGNORE_KEYS) and i not in seen:
+            out.append("%d: %s" % (i, ln)); seen.add(i)
+        if len(out) >= cap:
+            break
+    return "\n".join(out)
+
+VITE_KEYS = ["defineConfig", "resolveApiOrigin", "plugins:", "react()", "base:", "minify",
+             "manualChunks", "icons", "react-vendor", "port: 5173", "proxy:", "'/api'",
+             "target:", "changeOrigin", "preview:", "port: 4173", "host:", "strictPort"]
+def vite_excerpt():
+    out = []
+    for i, ln in enumerate(lines_of("网页端\\项目\\vite.config.ts"), 1):
+        if any(k in ln for k in VITE_KEYS):
+            out.append("%d: %s" % (i, ln))
+    return "\n".join(out)
+
+# ---------- 报告组装 ----------
+def build(L):
+    S = []
+    add = S.append
+
+    add("# CodeWeave 仓库快照报告（供 Gemini 架构分析）\n")
+    add("- 扫描时间：2026-11-12；扫描者：codeweave-scan（只读子代理）；对象：`G:\\CodeWeave`（只读，未修改任何文件、未执行任何改变 git 状态的命令）。")
+    add("- 用途：为「fullstack-study-library（Obsidian 资料库）输出 manifest.json 数据契约供 CodeWeave 消费」的方案提供 CodeWeave 一侧的真实结构、配置与代码事实。")
+    add("- 方法：read/glob/grep 工具真实读取 + 只读 Python 脚本生成目录树与统计；本报告嵌入的文件内容全部由脚本直接从磁盘读取原文。读不到/判不了的一律标注「未确认」。")
+    add("- 脱敏与隐私：git 远端 URL 经检查不含内嵌 token/密码；`.local/`、`.claude/`、`工作区/` 只记录存在与用途线索，不 dump 内容；签名私钥类文件（*.pfx）只记录存在。")
+    add("- 体积纪律：总量 ≤70KB。验收证据类 README（38 个）不内联（只列清单/计数），超长 README 与低优先级配置按预算截断/节选（截断处均注明）——此为预算取舍，非遗漏。\n")
+
+    # ===== 1 概览 =====
+    add("## 1. 仓库概览\n")
+    add("### 1.1 Git 状态（实测）\n")

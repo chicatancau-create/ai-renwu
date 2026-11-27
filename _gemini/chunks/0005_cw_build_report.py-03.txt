@@ -1,0 +1,58 @@
+    add("````text\nremote origin   https://github.com/chicatancau-create/CodeWeave.git\nremote gitcode  https://gitcode.com/zhoumoyukuai/CodeWeave.git\n当前分支        codex/project-layout-20261106   （读 .git/HEAD）\n最近 3 条提交（git -C G:\\CodeWeave log -3 --format=\"%h %ad %s\" --date=short）：\n396d3fa 2026-11-12 修正窄窗布局并校准验收口径\n574958f 2026-11-11 修复顶栏浮层动效并补充拆分对照证据\n1ef6455 2026-11-11 docs: 本轮修缮验收记录与进度同步\n````\n")
+    add("两个远端 URL 均无内嵌凭据，无需脱敏。\n")
+    add("### 1.2 顶层目录用途（基于实际内容判断）\n")
+    add("| 目录/文件 | 实测文件数* | 用途 |")
+    add("|---|---|---|")
+    add("| `应用端/` | %d | C++23 桌面端：`项目/`=源码（native Win32 壳 + 可选 Qt6 QML 壳 + 只读内容源），`开发环境/`=Qt 6.8.3 msvc2022_64 SDK 与签名材料，`构建产物/qt/current/`=唯一当前构建，`工程文件/`=验收证据与工程文档 |" % top_counts.get("应用端", -1))
+    add("| `网页端/` | %d | React/Vite 网页客户端 + 零依赖纯 Node 网页服务（`项目/server/`），含 OpenAPI 契约与内容编译管线 |" % top_counts.get("网页端", -1))
+    add("| `移动端/` | %d | Android/Kotlin Jetpack Compose 骨架（`mobile-app/`）+ C++20 共享核心（`mobile-core/`，独立 CMake，不在 Gradle 内） |" % top_counts.get("移动端", -1))
+    add("| `工程文件/` | %d | 仓库级工程文档（项目结构索引/基线/终验报告）与工具（check-layout.mjs、初始化本机入口.ps1、构建当前Qt.cmd 等） |" % top_counts.get("工程文件", -1))
+    add("| `工作区/` | %d（不展开） | 桌面端配置与真实运行数据（项目基线-第一版.md:14），含账户/草稿/学习记录等隐私（AGENTS.md 明令不上传），本次只记录存在 |" % privacy_counts.get("工作区", -1))
+    add("| `.local/` | 约 %d（不展开） | Qt 构建用英文 junction：app→应用端/项目、prep→应用端/开发环境/CodeWeave-prep、qt→应用端/构建产物/qt（check-layout.mjs 断言）；内容与目标目录重复，不单独计数 |" % privacy_counts.get(".local", -1))
+    add("| `.claude/` | %d（不展开） | 内容未读取；用途未确认（按名称推测为 Claude Code 本地配置，仅推测） |" % privacy_counts.get(".claude", -1))
+    add("| `.git/` | — | git 元数据，排除扫描 |")
+    add("| 根文件 | — | `AGENTS.md`（目录规则，见 §3）、`.gitignore`（隐私/产物排除，见 §5）、`.gitattributes`（native/content 字节保真，见 §5）。**根目录无 README、无 package.json** |")
+    add("")
+    add("\\* 文件数排除 node_modules/.git/dist/build/out/.next/coverage/__pycache__/.venv/.gradle 与隐私目录；总计 %d。三端源码都在各端 `项目/` 子目录内（外层仅一个启动 .lnk + 工程文件/）。" % total_files)
+    add("")
+    add("历史沿革：`工程文件/项目基线-第一版.md`（2026-10-04）记载应用端最初为「Windows Electron 应用端和 C++ 原生重构入口」，现已原生化（A2数据兼容契约.md:5「旧 Electron 字段仅作为显式导入来源」）；该文档提到的 `备份区/` 在当前顶层不存在（去向未确认）。当前权威目录规则以 AGENTS.md（2026-11-06）与 工程文件/项目结构索引.md 为准。\n")
+
+    # ===== 2 目录树 =====
+    add("## 2. 目录树（深度 3，脚本生成）\n")
+    add("排除：node_modules、.git、dist、build、out、.next、coverage、__pycache__、.venv、.gradle；隐私目录（.local/.claude/工作区）只计数不展开；单目录超过 15 个文件时只显示前 5 个并计数。每个目录后括注其递归文件数（同口径排除）。\n")
+    add("````text\n" + TREE + "\n````\n")
+
+    # ===== 3 规则文件 =====
+    add("## 3. 仓库规则与结构文档（全文）\n")
+    add(embed("AGENTS.md"))
+    add(embed("工程文件\\项目结构索引.md"))
+    add(embed("工程文件\\工具\\check-layout.mjs", 1, 30, note="lead 指定收前 30 行；检查项：根目录白名单、每端外层恰好 1 个 lnk+项目/+工程文件/、禁旧路径、.local 三 junction realpath 相等、AGENTS.md 关键句、构建产物/qt 下只许 current"))
+    if L["codestruct"]:
+        add(embed("应用端\\工程文件\\代码结构.md"))
+
+    # ===== 4 README =====
+    add("## 4. README 收录\n")
+    add("全仓共发现 %d 个 README（排除 node_modules 等）：9 个项目 README（全文或按预算截断，截断处均注明）+ %d 个验收证据 README（只列清单/计数不内联——70KB 预算取舍，内容多为截图与验收记录而非架构）。开发环境（Qt SDK）内未发现 README。" % (len(all_readmes), len(evidence_readmes)))
+    if flagged:
+        add("未归类 README（需人工复核）：" + "；".join(flagged))
+    add("")
+    for rel, kind in KNOWN_READMES:
+        if kind == "attach":
+            add(embed(rel, 1, L["attach"]))
+        elif kind == "design":
+            add(embed(rel, 1, L["design"]))
+        elif rel == "网页端\\项目\\README.md" and L["webreadme"]:
+            add(embed(rel, 1, L["webreadme"]))
+        elif kind == "cert" and L["certreadme"]:
+            add(embed(rel, 1, L["certreadme"]))
+        else:
+            add(embed(rel))
+    add("### 4.1 验收证据 README 清单（不内联）\n")
+    if L["evidence"] == "list":
+        for rel in evidence_readmes:
+            add("- `G:\\CodeWeave\\%s`（%d 字节）" % (rel, sz(rel)))
+    else:
+        add("共 %d 个，位于 应用端/工程文件/验收证据/ 与 网页端/工程文件/验收证据/ 各 Phase/阶段子目录内（完整路径见 §2 目录树），总计 %d 字节。" % (len(evidence_readmes), sum(sz(r) for r in evidence_readmes)))
+    add("")
+
+    # ===== 5 核心配置 =====

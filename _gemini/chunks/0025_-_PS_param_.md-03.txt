@@ -1,0 +1,14 @@
+- **WorkBuddy 安装路径再次漂移**：本记录所引国际版 `D:\WorkBuddyAIgouji\`（`WorkBuddy.exe` / `WorkBuddyAI.exe`）与旧国内版 `D:\WorkBuddyAIguonei\` 均已不存在（Test-Path MISS）。现役国内版为 `D:\WorkBuddyAI\WorkBuddy.exe`，FileVersion=**5.9.3**（与 [[规则-列表项累加先判派生视图再清源头数据]] 11-03 所载一致）。
+- **自启项悬空（新发现，2026-11-13 已修复）**：HKCU `Run\WorkBuddy.WorkBuddyAI` 原指向 `"D:\WorkBuddyAIguonei\WorkBuddyAI.exe"`（死路径）⇒ WorkBuddy 自启实际失效。用户放行（「能修的就修」）后已改指 `"D:\WorkBuddyAI\WorkBuddy.exe"`（现役 5.9.3），`Set-ItemProperty` 后回读确认。
+- 两个数据目录**并存、非同一事物的两个版本**：`C:\Users\Admin\.workbuddy\workbuddy.db`（国内版应用数据）与 `C:\Users\Admin\.workbuddy-ai\skills\`（技能根）均存在。
+- `~\.dsh\.workbuddy-*.json` 六个已于 11-07 移走（实测 NONE），`.credentials.yaml` 保留——与本记录后节一致。
+- dsh-workbuddy-connect 现为 **0.7.8**（profile `pnpm-workspace.yaml` minimumReleaseAgeExclude 所载；记录当时 0.7.2）。
+- 本记录的方法论（中文注册表值触发兜底、param 不绑定、判归属看真实进程参数、走本机接口读插件状态）仍有效；具体路径/版本以现查为准。
+
+## 关联
+
+- 相关记录：[[踩坑-第三方Claude客户端自带服务商配置切全局路由无效]]（同为"判归属要看真实进程/参数"）、
+  [[踩坑-PowerShell5.1读无BOM的UTF8脚本中文变乱码]]（同为 PS 5.1 语义坑）
+- 相关分类：[[03-通用/03-调试与验证/README|调试与验证]]
+- 取证脚本：`G:\AIrenwu\01_任务归档\2026-10-11_逆向工具箱体检\03_工具脚本\` 下 `repro_fallback.py`、`why_exit3.py`、
+  `ascii_budget_probe.py`、`repro_discovery.py`、`set_workbuddy_env.py`

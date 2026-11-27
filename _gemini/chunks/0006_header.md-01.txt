@@ -1,0 +1,56 @@
+# 双仓数据包：CodeWeave × 全栈工程师学习资料库
+
+> 供 Gemini 做「双仓数据契约 / 内容联动」架构分析的真实代码快照
+> 生成：2026-11-12 · 方式：本机只读扫描（两个并行扫描员 + lead 交叉验收）· 未修改任何源仓库
+> 本文件 = 分析请求与交叉核对结论（§0） + CodeWeave 快照全文（§A） + 资料库快照全文（§B）
+
+## 0. 这份数据包是什么 / 请你（Gemini）做什么
+
+背景：你此前无法爬取 GitCode 上的两个公开仓库（平台反爬拦截），只能基于仓库名给出「CodeWeave（软件引擎）+ fullstack-study-library（资料库）」的双仓解耦建议：数据契约 manifest.json、规范化 YAML frontmatter、Colocation 目录、三种同步方案（submodule / 构建期静态 JSON / 平台 OpenAPI）、weave 双向锚点。用户本地有这两个仓库，本数据包按你的要求抓取了 README、核心配置、目录结构，并额外做了**内容消费管线的代码级核查与两仓交叉核对**。
+
+请你基于以下真实材料修订/深化之前的架构建议，重点回答 §0.3 的问题清单。
+
+材料结构与证据分级：
+- §A = CodeWeave 快照（8 节：概览/目录树/规则文档/README/核心配置/技术栈/内容消费现状/主入口），全部磁盘原文 + file:line 证据。
+- §B = 资料库快照（9 节 + 2 附录：概览/目录树/统计/根文档/frontmatter/链接风格/scripts 与 CI/同地性/gitignore/交接文档/未确认清单）。
+- 标注约定：「实测」= 扫描员或 lead 直接对磁盘/代码核验；「宣称」= 仓库内文档原文（已嵌入），未独立验证；「未确认」= 判不了，不下否定结论。
+
+## 0.1 两仓身份（实测）
+
+| | CodeWeave（主软件） | 全栈工程师学习资料库（资料库） |
+|---|---|---|
+| 本地路径 | `G:\CodeWeave` | `E:\OBsidian\全栈工程师学习资料库` |
+| 远端 | github.com/chicatancau-create/CodeWeave · gitcode.com/zhoumoyukuai/CodeWeave | github.com/chicatancau-create/fullstack-study-library · gitcode.com/zhoumoyukuai/fullstack-study-library · atomgit.com/zhoumoyukuai/fullstack-study-library |
+| 分支 @ HEAD | codex/project-layout-20261106 @ 396d3fa（2026-11-12） | chore/fullstack-upgrade @ d84e132（2026-11-11） |
+| 形态 | 三端工作区：网页端（React 19.2.8 + TS 5.9.3 + Vite 8.2.1 Rolldown + 零依赖纯 Node 服务）/ 应用端（C++23 Win32 壳 + 可选 Qt 6.8.3 QML，CMake+MSVC）/ 移动端（Kotlin 2.0.21 + Compose Material3，C++20 mobile-core） | Obsidian 库：14 个顶层目录；自有 md 734 篇、代码 557 个；另有 05-外部资料库镜像 md 137,953 篇 / 13GB（gitignored，不进 Git） |
+| 根 README | 无（规则在 AGENTS.md + 工程文件/项目结构索引.md，全文见 §A3） | 有（4.7KB，全文见 §B4.1） |
+| Git 跟踪规模 | 见 §A1 | 1,938 文件 / 736 md（工作区现状口径） |
+
+## 0.2 七个关键事实（lead 交叉核对，按对架构决策的影响排序）
+
+### ① CodeWeave 不是白纸——网页端已内置一套 manifest 数据契约（实测，代码为证）
+
+- 读库根相对路径 `CodeWeave/content-manifest.json`（`网页端/项目/server/service/server/content/index.mjs:14`），强校验 `schemaVersion===1`（:48）+ 稳定 `vaultId`（:51）。
+- 代码实际消费的字段：`schemaVersion` / `vaultId` / `publishWhitelist`（含 topicIndexPath、topicIdMapPath）/ `sourceRegistry`（verificationStatus）/ `topics` / `publishedContentIds`。**无独立 JSON Schema 文件**，契约散在 compiler.mjs / index.mjs / validation-codes.yaml；字段表全文见 §A7.2。
+- frontmatter 只支持**受限子集**：顶层 `key: value` 标量 + 行内 `[a,b]` 列表（markdown.mjs:99 parseRestrictedFrontmatter）。你建议的多行嵌套 YAML（如 `stack:` 换行列表）**不被支持**，需写成行内形式。
+- 管线：vault → manifest → 编译快照（compiler.mjs:825 compileContent，maxTopicBytes=200_000）→ 同源 API → 受限 Markdown 渲染；另有证据写回通道（预览→确认→提交备份→可回滚，§A7.6）。
+- 注意：§A7.3 称该子集「与资料库 Python 工具（check_vault.py / build_topic_index.py）同语义」，但这两个工具在当前资料库工作区**不存在**（见②），可能属于旧布局/历史版本，未确认。
+- **含义：资料库应产出与这套现有契约兼容的清单，而不是新造 weave-index.json。**
+
+### ② 两仓当前事实上失联——CodeWeave 硬编码的库布局在资料库里全部不存在（实测，最重要的发现）
+
+- CodeWeave 两端硬编码的库根相对路径（§A7.5）：`CodeWeave/content-manifest.json`、`CodeWeave/同步报告/同步记录.json`、`全栈工程师学习计划/进度追踪.md`、`全栈工程师学习计划/全栈竞赛长期冲刺总计划.md`、`knowledge/vault/CodeWeave/rules/teaching-rules.json`、`tools/check_vault.py`、`tools/build_topic_index.py`。
+- lead 定点存在性检查：以上路径在资料库工作区**全部 MISSING**；`git ls-files` 当前分支索引也**全部为空**（历史提交未查）。输出原文见 §0.5.1/§0.5.2。
+- 资料库 `000-学习总览.md` 原文（§B4.2）：本库 2026-11-05 起由原名「全栈工程师学习计划」改名重组为现在的「01-阶段课程…09-整合任务」布局；旧名仅存于 `90-历史归档/全栈工程师学习计划-recover/`（48 篇 md，2026-11-04 快照）。
+- `E:\OBsidian` 下不存在独立的「全栈工程师学习计划」vault（实测，§0.5.3）。**注意 `E:\OBsidian\.obsidian` 存在于父级**，资料库自身无 .obsidian——真实 Obsidian vault 根可能是 `E:\OBsidian` 这一层，CodeWeave 绑定路径需按此核对（未与用户确认）。
+- CodeWeave 本机两端均未配置真实库根（server/config 只有 example、server/data 不存在、Qt 库根在 QSettings，§A7.9）。
+- **含义：方案第一步不是「设计新契约」，而是「修复现有契约的路径失配」——要么资料库补出 CodeWeave 期望的布局与清单，要么改 CodeWeave 两端硬编码路径适配新布局。两条路线的取舍请你分析（§0.3 问题 2）。**
+
+### ③ 自有学习笔记 frontmatter 覆盖率 ≈ 0%（实测抽样 + 全量统计）
+
+- 全库 55.0%（76,285/138,687）有 fm，但几乎全部来自 05 外部抓取镜像（76,268 篇）；自有目录 01/02/06/07 全 0；08 的 17 篇有 fm 者全部是 RAG-GoldenSet 考题语料数据（字段 id/tenant/title/version），不是笔记元数据（§B5）。
+- 你建议的 `stack` / `sandbox_path` / `related_ids` 字段**全库 0 命中**。
+- **含义：frontmatter 规范化是纯增量工作，且必须落在 CodeWeave 受限子集能解析的形式内（见①）。**
+
+### ④ 无知识索引；已有 manifest 是「证据清单」不是「知识索引」（实测）
+

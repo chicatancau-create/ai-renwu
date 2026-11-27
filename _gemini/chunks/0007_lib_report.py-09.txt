@@ -1,0 +1,43 @@
+    A("4. 所有门禁数字（verify_all 21/21、28/28、ARCHIVE VERIFY PASS、各项目测试通过率/覆盖率）：文档宣称，本次**未复跑**（只读纪律；verify_archive.sh 会在临时目录 git init，亦避免执行）。")
+    A("5. 05 镜像的「材料清单.md 可复现」能力：未验证（仅确认文件存在性）。")
+    A("6. 05 外部内容的质量/版权/时效：未评估（本次只做结构与统计）。")
+    A("7. 工作区 vs HEAD 差异：未比对（交接文档警告存在其他会话未提交改动；避免会写 .git/index 的命令）。第 1 节的跟踪文件体积按工作区现状计算，若跟踪文件有未提交修改则与 HEAD 树有出入。")
+    A("8. fm 判定把「读取失败」计入无 fm；本次遍历 0 错误，md 读取失败数未单独统计（口径影响极小，如实说明）。")
+    A("")
+    A("（报告完）")
+    return "\n".join(L).replace("{PII_COUNT}", str(len(FLAGS)))
+
+
+def main():
+    D = S.collect()
+    report = None
+    for trim in range(4):
+        FLAGS.clear()
+        report = build(D, trim)
+        data = report.encode("utf-8")
+        print("trim=%d bytes=%d" % (trim, len(data)))
+        if len(data) <= LIMIT:
+            break
+    with open(OUT, "w", encoding="utf-8", newline="\n") as f:
+        f.write(report)
+    print("WROTE", OUT, len(data), "bytes; trim =", trim)
+    print("PII/secret flags:", len(FLAGS), FLAGS[:10])
+    # 关键核对数字(供完成消息)
+    md_total = len(D["md_files"])
+    own_md = sum(len(v) for k, v in D["md_by_dir"].items() if k != "05-外部资料库")
+    own_fm = sum(n for k, n in D["fm_by_top"].items() if k != "05-外部资料库")
+    print("CHECK md_total=%d fm_yes=%d fm_pct=%.1f own_md=%d own_fm=%d" % (
+        md_total, D["fm_yes"], 100.0 * D["fm_yes"] / max(md_total, 1), own_md, own_fm))
+    print("CHECK manifests=%d index_jsons=%d workflows=%d build_index=%s" % (
+        len(D["manifests"]), len(D["index_jsons"]), len(D["workflows"]), D["build_index_exists"]))
+    print("CHECK branch=%s sha=%s fullstack_code=%s walk_errors=%d" % (
+        D["branch"], (D["branch_sha"] or "")[:12], D["fullstack_code"], len(D["walk_errors"])))
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except Exception:
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)

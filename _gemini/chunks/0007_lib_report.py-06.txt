@@ -1,0 +1,71 @@
+        A("| %s | %s | %s | %.1f%% |" % (k, format(n, ","), format(y, ","), 100.0 * y / max(n, 1)))
+    A("")
+    A("**扫描员结论：自有学习笔记的 frontmatter 覆盖率为 0%%**（01/02/06/07 全为 0；08 的 %d 篇有 fm 文件分布为 %s——%s）。Gemini 建议的规范化 YAML frontmatter 在自有笔记侧**完全未落地**。" % (
+        own_fm, "、".join("%s %d 篇" % (k, v) for k, v in sorted(fm08_dist.items())),
+        "全部位于 RAG-GoldenSet，是判定题的语料数据文件（字段 id/tenant/title/version，服务于多租户检索隔离考题），不是笔记元数据"
+        if rag_only else "均为题库数据文件而非学习笔记"))
+    A("")
+    A("### 5.2 五个重点目录抽样（完整 frontmatter 或「无」）")
+    A("")
+    for d in S.FOCUS_DIRS:
+        yes, no = D["fm_by_dir"][d]
+        A("**%s**（有 fm %d / 无 %d）：" % (ap(d), yes, no))
+        A("")
+        for s in D["fm_samples"][d]:
+            A("- 样本 `%s`：" % ap(s["path"]))
+            if s["has_fm"]:
+                A("")
+                A(fence(emb(s["fm"]), "yaml"))
+            else:
+                t = S.read_text(os.path.join(ROOT, s["path"]))
+                first = t.splitlines()[0][:120] if t else "(未读到)"
+                A("  **无 frontmatter**（首行即正文：`%s`）" % emb(first))
+            A("")
+    A("### 5.3 已有字段清单（全库 fm 顶层键，Top %d%s）" % (field_n, "，完整 40 项可由 _lib_scan.py 复现" if field_n < 40 else ""))
+    A("")
+    A("| 字段 | 出现笔记数 | 主要来源（扫描员判断） |")
+    A("| --- | --- | --- |")
+    SRC_HINT = {
+        "title": "05 抓取内容通用", "category": "05 抓取内容", "url": "05 抓取溯源",
+        "scraped_at": "05 抓取时间戳", "doc_updated_at": "05 抓取时间戳", "content_hash": "05 抓取去重",
+        "breadcrumb": "05 抓取导航", "id": "05 freeCodeCamp 等 + 08 语料", "challengeType": "05 freeCodeCamp",
+        "dashedName": "05 freeCodeCamp", "tags": "05 各来源", "slug": "05 文档站", "page-type": "05 MDN",
+        "difficulty": "05 freeCodeCamp/leetcode 类", "browser-compat": "05 MDN", "short-title": "05 MDN",
+        "leetcode_no": "05 算法题解", "lang": "05 文档站", "sidebar": "05 文档站", "forumTopicId": "05 freeCodeCamp",
+        "tenant": "08 RAG 语料", "version": "08 RAG 语料等",
+    }
+    for k, n in D["field_ctr"].most_common(field_n):
+        A("| %s | %s | %s |" % (k, format(n, ","), SRC_HINT.get(k, "05 外部内容")))
+    A("")
+    A("任务点名字段实测：tags=%s、aliases=%s、cssclass=%s（后两者全库未出现）。**没有任何自有笔记贡献字段**——上表全部来自 05 外部抓取内容与 08 语料数据。" % (
+        format(D["field_ctr"].get("tags", 0), ","), format(D["field_ctr"].get("aliases", 0), ","),
+        format(D["field_ctr"].get("cssclass", 0), ",")))
+    A("")
+    A("Gemini 建议字段全库命中（fm 顶层键精确匹配）：")
+    A("")
+    A("| 建议字段 | 命中笔记数 |")
+    A("| --- | --- |")
+    for f in S.GEMINI_FIELDS:
+        A("| %s | %s |" % (f, format(D["gemini_ctr"].get(f, 0), ",")))
+    A("")
+    A("即 `stack / sandbox_path / related_ids` 为 0；`id / difficulty / type / domain` 的命中全部来自外部内容，语义也与 Gemini 方案不同（如 difficulty 是 freeCodeCamp 题目难度，不是笔记学习难度）。")
+    A("")
+
+    # ================= 6 链接与组织 =================
+    A("## 6. 链接与组织风格")
+    A("")
+    ls = D["links_scope"]
+    A("| 范围 | wikilink `[[...]]` | markdown 链接 `[..](..)`（含图片嵌入） |")
+    A("| --- | --- | --- |")
+    A("| 全库 | %s | %s |" % (format(D["wiki_n"], ","), format(D["mdlink_n"], ",")))
+    A("| 05-外部资料库 | %s | %s |" % (format(ls["wiki_05"], ","), format(ls["md_05"], ",")))
+    A("| 自有内容（除 05） | %s | %s |" % (format(ls["wiki_own"], ","), format(ls["md_own"], ",")))
+    A("")
+    A("解读（扫描员）：外部镜像以 markdown 链接绝对主导（抓取原文如此）；**自有笔记两种风格混用、数量接近**（wiki %d vs md %d），导航层（README/000-学习总览）大量使用 `[[路径|别名]]` wikilink（见第 4 节原文），正文引用外部资料时用 markdown 链接。若 CodeWeave 要解析链接图，需同时支持两种语法；wikilink 目标多为仓库相对路径+别名，无 frontmatter id 可依赖。" % (ls["wiki_own"], ls["md_own"]))
+    A("")
+    A("目录命名规律（实测归纳）：")
+    A("")
+    A("- 顶层：两位数字前缀 `01-`…`09-`、`90-`（历史归档），中文语义名。")
+    A("- 01-阶段课程：根层 = README + `阶段00`–`阶段10`（11 篇）+ `专项-*`（24 篇，语言/运行时/主题专项）；子目录 `教学单元/U01`–`U09`（字母+数字单元号，各带 evidence/）。根层 md 共 %d 篇。" % len(D["list_01_root"]))
+    A("- 02-项目实战：`项目01`–`项目05` + 项目实战总览 + README，共 7 篇：%s。" % "、".join("`%s`" % os.path.basename(p) for p in D["list_02"]))
+    A("- 06-实验代码：`E01`–`E13` + `G1`（实验单元）+ `_shared`/`_template`（下划线前缀 = 共享/模板工具）。")

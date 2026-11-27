@@ -1,0 +1,65 @@
+    "ios-application-dev": ("WorkBuddy 市场（skillId=skill_2053082181124681728，v1.0.0）", "MIT（frontmatter `license`）"),
+    "impeccable": ("WorkBuddy 市场（skillId=skill_2053082862415904768，v2.0.0）；"
+                   "frontmatter `homepage: github.com/pbakaus/impeccable`；"
+                   "正文引用 `anthropics/skills` 的 frontend-design",
+                   "Apache-2.0（frontmatter 声明，基于 Anthropic frontend-design）。"
+                   "**瑕疵：声明「See NOTICE.md」但包内无 NOTICE.md**"),
+    "brave-web-search": ("OpenClaw 预装（slug=brave-web-search，2026-08-11，version=3e088af6…）", "**未声明**"),
+    "tavily-search": ("OpenClaw 预装（slug=tavily-search，2026-08-11，version=ea5e8201…）", "**未声明**"),
+    "find-skills": ("OpenClaw 预装（slug=find-skills，2026-08-11，version=e173b8c8…）", "**未声明**"),
+    "self-improving-agent": ("OpenClaw 预装（slug=self-improving-agent，2026-08-11，version=114ca7b5…）；"
+                             "正文上游 `github.com/pskoett/pskoett-ai-skills`（v4.0.0）", "**未声明**"),
+    "sickn33-frontend-slides": ("skillstore slug `sickn33-frontend-slides`（2026-10-02）；"
+                                "frontmatter `source: github.com/zarazhangrui/frontend-slides`", "**未声明**"),
+    "dws": ("钉钉官方 DingTalk Workspace CLI（随包 `NOTICE`：Copyright 2026 Alibaba Group）",
+            "Apache-2.0（随包 `LICENSE` + `NOTICE`）"),
+    "webapp-building": ("**泄露内容**：与 `D:\\QoderToolkit\\web-kimi` 逐文件 sha256 比对 173/175 字节相同；"
+                        "web-kimi 的 PROVENANCE 记来源 `QvvvvvvQ/skills_leaks` 的 `Kimi/skills/webapp-building`",
+                        "**没有任何使用许可**（上游 README 明示）。仅本机学习研究，禁止二次分发"),
+    "reverse-trace": ("本机下载包 `H:\\下载\\06-skill-mcp-3.0\\trace（skill）.zip`（第三方分发，非官方市场）",
+                      "**包内无 LICENSE，许可状态未知**；PROVENANCE 限定仅本机自用"),
+    "reverse-wechat-miniapp": ("本机下载包 `H:\\下载\\06-skill-mcp-3.0\\wechat-miniapp-reverse(小程序逆向skill).zip`",
+                               "**包内无 LICENSE，许可状态未知**；PROVENANCE 限定仅本机自用"),
+    "landing-page-design": ("`github.com/elayadesign/ai-design-skills` @ `456d9e0d3e2d`（2026-11-01），见 PROVENANCE.md",
+                            "MIT（随包 `LICENSE`，Copyright (c) 2026 Elaya）"),
+    "figma-designer": ("`github.com/elayadesign/ai-design-skills` @ `456d9e0d3e2d`（2026-11-01），见 PROVENANCE.md",
+                       "MIT（随包 `LICENSE`，Copyright (c) 2026 Elaya）"),
+    "headroom": ("`github.com/headroomlabs-ai/headroom` 的 `skills/headroom/SKILL.md` 原文 + 本机安装事实段",
+                 "Apache-2.0（上游仓库）"),
+    "diagnose-windows-sandbox-acl": ("2026-11-15 01:38 由外部放入本库（DSH 侧技能）；**上游未记录**", "**未声明**"),
+}
+
+print("=== provenance evidence per skill ===")
+rows = []
+for s in skills:
+    if s["dir"] in EVIDENCE:
+        origin, lic = EVIDENCE[s["dir"]]
+    elif s["dir"] in SELF:
+        origin, lic = "本机自建", "自有"
+    elif s["provenance"]:
+        origin, lic = "见 PROVENANCE.md", "**未声明**"
+    elif s["dir"] in lock:
+        origin = "skillstore slug `%s`（%s 装入）" % (
+            lock[s["dir"]].get("slug", s["dir"]), lock[s["dir"]].get("installedAt", "?")[:10])
+        lic = s["license"] or "**未声明**"
+    else:
+        origin, lic = "**来源未记录**", s["license"] or "**未声明**"
+    rows.append((s, origin, lic))
+    print("  %-38s %s" % (s["dir"], lic[:70]))
+
+# ---------------- THIRD_PARTY.md ----------------
+tp = []
+tp.append("# 第三方技能来源与许可登记\n")
+tp.append("生成时间：%s。本文由脚本从 **frontmatter 字段 / `.agents\\.skill-lock.json` / 各技能自带的 "
+          "`PROVENANCE.md` 与 `LICENSE`** 汇总，**没有推测来源**；查不到的就写「来源未记录」。\n"
+          % time.strftime("%Y-%m-%d %H:%M"))
+tp.append("\n> 本仓库是**个人备份**，不是再分发。下面标「未声明」的技能，其授权状态未知，"
+          "**不要公开转发或商用**。\n")
+tp.append("\n## 一、本机自建（%d 个）\n" % sum(1 for s, o, l in rows if o == "本机自建"))
+tp.append("\n| 目录 | 说明 |\n| --- | --- |\n")
+for s, o, l in rows:
+    if o == "本机自建":
+        tp.append("| `%s` | %s |\n" % (s["dir"], s["desc"][:70].replace("|", "/")))
+tp.append("\n## 二、第三方引入（%d 个）\n" % sum(1 for s, o, l in rows if o != "本机自建"))
+tp.append("\n| 目录 | frontmatter name | 来源 | 许可 | 自带 LICENSE |\n| --- | --- | --- | --- | --- |\n")
+for s, o, l in rows:

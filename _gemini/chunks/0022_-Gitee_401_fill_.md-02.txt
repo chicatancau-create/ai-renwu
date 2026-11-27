@@ -1,0 +1,62 @@
+把 Windows 凭据管理器里的 `git:https://gitcode.com` **删掉了**。事后 `cmdkey /list` 只剩 `gh:github.com:*` 两条。
+
+⇒ 三条规则：
+1. **`--dry-run` 只保证不写 ref，不保证不碰凭据**；想验通路优先用 `git ls-remote`（纯 fetch，不触发 reject）。
+2. 多 `pushurl` 时 **git 撞第一个失败就中止**，后面的 URL 根本轮不到 ⇒ 「一次落两端」的结构决定了
+   **一端凭据坏 = 两端都推不上**，别以为另一端还能侥幸收到。
+3. 删掉的凭据只能让用户重填，AI 无法恢复；给用户派活前先想清楚这次探测会不会吃掉他的凭据。
+
+同轮另一条正向验证：`git push --dry-run <单个 GitHub URL>` 回 `* [new branch] main -> dualpush-check`，
+证明 GitHub 侧认证通路完好——**用显式单个 URL 探**，就不会连累另一端的凭据。
+
+**由此得到一条可复用的正向技巧：怎样「只为弹认证窗并落凭据」而不发布任何东西。**
+
+```bash
+git push --dry-run https://<host>/<owner>/<repo>.git main:refs/heads/cred-check
+```
+
+`--dry-run` 让服务端协商照常发生但**不创建 ref**，而认证是真实走的 ⇒ GCM 弹窗、用户填令牌、
+凭据落进 Windows 凭据管理器，远端却什么都没多出来。事后两条收尾断言必跑：
+`cmdkey /list` 里 `git:https://<host>` 回来了；`git ls-remote --heads <url>` 里**没有** `cred-check`。
+（对比：直接对多 pushurl 的 remote 跑 `--dry-run` 会先撞第一个失败并删凭据，所以**必须用显式单 URL**。）
+
+### 「凭据到底通没通」的完整证据链（同轮，被用户追问后补做）
+
+先承认一个假证据：**公开仓库匿名 `ls-remote` 也能拿到 refs**，所以「读得到」证明不了任何凭据。
+要证「写凭据可用」得凑齐四步，缺一步都下不了结论：
+
+```
+① 对照：GET /info/refs?service=git-upload-pack   -> 200   （匿名可读，故读操作不能当证据）
+② 对照：GET /info/refs?service=git-receive-pack  -> 401   （匿名写协商被拒 = 该端点真的校验）
+③ 对照：带明显错的凭据打 receive-pack            -> 401   （不是"给什么都放行"）
+④ 实验：GIT_TERMINAL_PROMPT=0 GCM_INTERACTIVE=never git push --dry-run <单URL> main:refs/heads/x
+        -> * [new branch] 且 rc=0                （禁弹窗 ⇒ 用的只能是"已存进凭据管理器"的那条，
+                                                   不是弹窗当场输入的那份内存凭据）
+⑤ 收尾：git ls-remote --heads <URL> 里没有那个临时 ref 名（证明确实没发布）
+```
+
+`--dry-run` 会打印 `* [new branch]` 是因为它拿到了服务端**授权后**的 receive-pack ref  advertisement；
+凭据无效时同一命令直接 `fatal: Authentication failed`（本轮修凭据前就是这句），两者可分辨。
+另记一条环境噪声：`gitcode.com` 当时解析要 **11.4 s** 并偶发 `Could not resolve host`，
+一次 A/B 因此整组作废 —— **网络层失败会把认证实验一起污染**，先用 `--resolve <域名>:443:<IP>` 绕开 DNS 再测。
+
+## 适用范围与不适用范围
+
+- 适用：Gitee、GitCode/AtomGit 等「401 文案不区分权限」的托管站；任何配了 GCM generic provider 的 HTTPS 仓库
+- 不适用：GitHub（GCM 走 OAuth，未授权与无权限文案可区分）；SSH 协议仓库（权限报错是 `Permission denied (publickey)`）
+- **跨平台不通用**：`gitee.com/<属主>/<仓库>` 与 `atomgit.com`（= `gitcode.com`）是**两套独立账号体系**，
+  课件给的域名决定该登哪个站。本轮实测同一 `lzy_syx/mymall` 在 atomgit/gitcode 域名下回
+  `<CH.00905403> The project you were looking for could not be found` + 403，即该仓库只存在于 gitee，
+  拿 AtomGit 的账号密码去填 gitee 弹窗必然失败。
+
+## 剩余风险
+
+- Gitee 网页 403 与反爬同码，若属主公开列表被折叠/分页，「不在列表里」可能误判为私有；本例列表页 200 且含多个仓库，判据成立，但换站点需重新验。
+- 属主把主页设为 `Privacy(<user>)` 时 `/projects` 会**整列空**，此时「不在列表里」判据失效（见上节对照测试），只能退回「问仓库主人 / 让用户在已登录浏览器里打开该仓库页」两招。
+- 用户真实密码是否输错未证实，不能排除「凭据也错」叠加「仓库也没权限」两种问题同时存在。
+
+## 关联
+
+- 相关记录：[[规则-AtomGit与GitHub差异与国内推送判据]]（同属「状态码不能单独判存在性」）、[[踩坑-AI面板连接失败耗时1ms是没填密钥而非网络]]（同类：报错文案把归因带偏）
+- 相关分类：[[03-通用/03-调试与验证/README|调试与验证]]
+- 相关命令：`git ls-remote`、`cmdkey /list`、`git credential reject`

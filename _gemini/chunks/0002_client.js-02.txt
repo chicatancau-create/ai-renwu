@@ -1,0 +1,122 @@
+      if (anchor !== undefined) {
+        // 贴住按钮左下角；空间不够时向上翻。
+        const below = anchor.top + anchor.height + 6
+        const roomBelow = window.innerHeight - below
+        if (roomBelow < 260 && anchor.top > 280) {
+          style.bottom = window.innerHeight - anchor.top + 6
+        } else {
+          style.top = below
+        }
+        style.left = Math.max(8, Math.min(anchor.left, window.innerWidth - 372))
+      }
+      return style
+    }
+
+    /** 菜单项样式。 */
+    function itemStyle(active) {
+      const dark = prefersDark()
+      return {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 2,
+        width: '100%',
+        padding: '8px 10px',
+        border: 'none',
+        borderRadius: 8,
+        background: active ? (dark ? 'rgba(255, 255, 255, .08)' : 'rgba(0, 0, 0, .06)') : 'transparent',
+        color: dark ? '#EDEDED' : '#1A1A1A',
+        font: 'inherit',
+        fontSize: 13,
+        textAlign: 'left',
+        cursor: 'pointer',
+      }
+    }
+
+    /** 菜单项里的描述行：比名称更淡一档。 */
+    const itemDescStyle = {
+      color: prefersDark() ? 'rgba(237, 237, 237, .62)' : 'rgba(26, 26, 26, .6)',
+      fontSize: 12,
+      lineHeight: '16px',
+      whiteSpace: 'normal',
+    }
+
+    /** 菜单项里的名称行。 */
+    const itemNameStyle = {
+      color: prefersDark() ? '#EDEDED' : '#1A1A1A',
+      fontSize: 13,
+      lineHeight: '20px',
+    }
+
+    function apply(ctx) {
+      const remote = ctx.remote
+      if (remote === undefined || remote.agentPresets === undefined) {
+        console.error('preset-switcher: remote.agentPresets 不可用，未注册界面')
+        return
+      }
+
+      /**
+       * 会话标题栏里的预设切换器。
+       * @param props 槽位注入的属性，含 sessionId 与 useSessions。
+       */
+      function PresetSwitcher(props) {
+        const sessionId = props.sessionId
+        const useSessions = props.useSessions
+
+        // 本会话实际在跑的预设，来自会话投影。
+        const current = useSessions((state) => {
+          const value = state.byId[sessionId]?.projectionValues?.agentPreset
+          return typeof value === 'string' ? value : undefined
+        })
+
+        const rootRef = React.useRef(null)
+        const [presets, setPresets] = React.useState([])
+        const [open, setOpen] = React.useState(false)
+        const [anchor, setAnchor] = React.useState(undefined)
+        const [busy, setBusy] = React.useState(false)
+        const [refusal, setRefusal] = React.useState(null)
+        /**
+         * 同步的「正在切换」锁。
+         *
+         * busy 是 state，setBusy(true) 要等下一次渲染才可见；同一帧内的两次点击
+         * 都会读到 busy=false 并各自发出请求。宿主虽会串行执行，但结果是「点一次切两次」，
+         * 第二次还可能把预设切回去。ref 在赋值瞬间就生效，能真正挡住重入。
+         */
+        const busyRef = React.useRef(false)
+
+        React.useEffect(() => {
+          let alive = true
+          const read = async () => {
+            try {
+              const result = await remote.agentPresets.list()
+              if (alive) setPresets(result.ok ? (result.value.presets ?? []) : [])
+            } catch {
+              if (alive) setPresets([])
+            }
+          }
+          read()
+          return () => {
+            alive = false
+          }
+        }, [])
+
+        // 点外部关闭与 Esc 关闭。
+        //
+        // 用 click 而不是 mousedown：mousedown 先于 click 触发，一旦在这里
+        // 判定成「外部点击」并关闭菜单，菜单项会在 click 到达之前被卸载，
+        // 菜单项的 onClick 永远不会执行——表现就是「能点开但点了没反应」。
+        // 改用 click 后，菜单项自己的 click 先派发（React 在根容器上监听），
+        // 再轮到 document 上的这个监听器，顺序天然正确。
+        React.useEffect(() => {
+          if (!open) return undefined
+          const onDocumentClick = (event) => {
+            const inRoot = rootRef.current !== null && rootRef.current.contains(event.target)
+            if (inRoot) return
+            const inMenu =
+              event.target instanceof Element &&
+              event.target.closest('[data-preset-switcher-menu]') !== null
+            if (inMenu) return
+            setOpen(false)
+          }
+          const onKeyDown = (event) => {
+            if (event.key === 'Escape') setOpen(false)
+          }

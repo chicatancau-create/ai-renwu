@@ -1,0 +1,119 @@
+# -*- coding: utf-8 -*-
+"""电源计划盘点 / 重复判定 / 去重删除。
+
+用法：
+  python power_schemes.py                      # 只读体检，列出全部方案与重复组
+  python power_schemes.py --backup DIR         # 体检 + 把 HKLM PowerSchemes 导出到 DIR（禁止 DIR 落在 TEMP）
+  python power_schemes.py --delete GUID [GUID] # 删除指定方案（微软内建与当前活动方案一律拒绝）
+
+背景：Driver Booster（本机在 D:\\IObitDriverBooster）每次运行都会 import 一份同名方案，
+键名 FriendlyName 是 REG_EXPAND_SZ，用 REG_SZ 的正则去读会得到空值。
+"""
+import argparse
+import hashlib
+import os
+import re
+import subprocess
+import sys
+
+BASE = r"HKLM\SYSTEM\CurrentControlSet\Control\Power\User\PowerSchemes"
+BUILTIN = {
+    "381b4222-f694-41f0-9685-ff5bb260df2e": "平衡",
+    "8c5e7fda-e8bf-4a96-9a85-a6e23a8c635c": "高性能",
+    "a1841308-3541-4fab-bc81-f71556f20b4a": "节能",
+    "e9a42b02-d5df-448d-aa00-03f14749eb61": "卓越性能",
+}
+GUID = re.compile(r"[0-9a-fA-F]{8}-(?:[0-9a-fA-F]{4}-){3}[0-9a-fA-F]{12}")
+ATTR_OVERLAY = 0x2
+
+
+def run(cmd):
+    p = subprocess.run(cmd, capture_output=True, shell=isinstance(cmd, str))
+    return p.returncode, p.stdout.decode("gbk", errors="replace"), p.stderr.decode("gbk", errors="replace")
+
+
+def list_guids():
+    _, out, _ = run(["reg", "query", BASE])
+    keys = []
+    for line in out.splitlines():
+        line = line.strip()
+        if line.upper().startswith("HKEY"):
+            tail = line.split("\\")[-1]
+            if GUID.fullmatch(tail):
+                keys.append(tail.lower())
+    return keys
+
+
+def friendly_name(guid):
+    _, out, _ = run(["reg", "query", os.path.join(BASE, guid)])
+    for line in out.splitlines():
+        if "FriendlyName" in line:
+            parts = line.split()
+            if len(parts) >= 3:
+                name = parts[-1]
+                # 内建方案存的是间接字符串 @%SystemRoot%\...，不是可读名字
+                return BUILTIN.get(guid.lower(), name) if name.startswith("@") else name
+    return "(无名)"
+
+
+def attributes(guid):
+    _, out, _ = run(["reg", "query", os.path.join(BASE, guid)])
+    for line in out.splitlines():
+        if "Attributes" in line:
+            m = re.search(r"0x([0-9a-fA-F]+)", line)
+            return int(m.group(1), 16) if m else 0
+    return 0
+
+
+def fingerprint(guid):
+    rc, out, _ = run(["powercfg", "-query", guid])
+    if rc != 0:
+        return None
+    norm = GUID.sub("<GUID>", out)
+    norm = re.sub(r"[0-9a-fA-F]{2} [0-9a-fA-F]{2}", "<HEX>", norm)
+    norm = re.sub(r"\s+", " ", norm)
+    return hashlib.sha256(norm.encode("utf-8", "replace")).hexdigest()[:16]
+
+
+def active_guid():
+    _, out, _ = run(["powercfg", "-getactivescheme"])
+    m = GUID.search(out)
+    return m.group(0).lower() if m else None
+
+
+def backup(dest):
+    dest = os.path.abspath(dest)
+    tempdirs = [os.path.abspath(os.environ[k]) for k in ("TEMP", "TMP") if os.environ.get(k)]
+    if any(dest == t or dest.lower().startswith(t.lower() + os.sep) for t in tempdirs):
+        print("拒绝：备份目标落在 TEMP 里。更新重启与磁盘清理会整目录清空（本机 2026-11-11 实测丢过 19 份 .reg）。")
+        return 3
+    os.makedirs(dest, exist_ok=True)
+    path = os.path.join(dest, "PowerSchemes-%s.reg" % time_stamp())
+    rc, _, err = run(["reg", "export", BASE, path, "/y"])
+    if rc != 0 or not os.path.isfile(path) or os.path.getsize(path) < 1024:
+        print("导出失败:", err.strip()[:200])
+        return 4
+    print("已导出", path, os.path.getsize(path), "字节")
+    # 只导出注册表键不够：删完还要能用 powercfg -duplicatescheme 复现，所以同时留一份方案清单
+    with open(path.replace(".reg", "-names.txt"), "w", encoding="utf-8") as fh:
+        for g in list_guids():
+            fh.write("%s\t%s\n" % (g, friendly_name(g)))
+    return 0
+
+
+def time_stamp():
+    import time
+    return time.strftime("%Y%m%d-%H%M%S")
+
+
+def delete(guids, allowed_names):
+    act = active_guid()
+    fail = 0
+    for g in guids:
+        g = g.lower()
+        if g in BUILTIN:
+            print("拒绝删除内建方案", g, BUILTIN[g]); fail += 1; continue
+        if g == act:
+            print("拒绝删除当前活动方案", g); fail += 1; continue
+        if g not in list_guids():
+            print("跳过：注册表里没有这个方案键", g); fail += 1; continue

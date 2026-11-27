@@ -1,0 +1,44 @@
+13. **残留电源方案键不必清理**。`powercfg /list` 只显示可见方案，注册表 `User\PowerSchemes` 下可能躺着 10 个（克隆、第三方、overlay）。判断有没有风险看两个特征：① 有没有 `4f971e89-…`（SUB_BUTTONS）子键；② 有子键的方案在策略锁下读出来是不是休眠。纯 overlay（`961cc777`/`ded574b5`）子键为空，本就不承载按钮设置。
+14. **🚫 不要用注册表 ACL（Deny）去"加固"策略键 —— 会把提权管理员自己锁死**。这条我亲自走错，用了 12 个脚本才回滚干净，详见任务归档「三之四」节。
+    - **反直觉机制**：`Deny BUILTIN\Users` 时，**提权管理员的令牌仍然包含 `BUILTIN\Users`**，而 Windows 判定顺序是 **Deny 优先于 Allow**。结果是连管理员都读不了、改不了、连 ACE 都 `RemoveAccessRule` 不掉；唯一还能动的只剩 `SYSTEM`（`S-1-5-18`）。
+    - **`Set-Acl` / `RemoveAccessRule` 在 PowerShell provider 层会静默失败**：`Set-Acl` 抛 `System.Security.SecurityException: 不允许所请求的注册表访问权。`，但同一个键用原生 `[Microsoft.Win32.Registry]::LocalMachine.OpenSubKey($sub,'ReadWriteSubTree','ChangePermissions')` **能成功** —— 说明 WriteDAC 是通的，卡的是 provider 封装层，不是 Win32 权限。
+    - **教训**：ACL 操作绝不能 `try/catch` 吞异常后打印 `[OK]`，必须**重新打开键复查 ACE 数量**才算验证（本次前 5 个脚本全在自欺）。
+    - **真要清的方式**（已实测）：
+      ```powershell
+      $k    = [Microsoft.Win32.Registry]::LocalMachine.OpenSubKey($sub,'ReadWriteSubTree','ChangePermissions')
+      $sec  = $k.GetAccessControl([System.Security.AccessControl.AccessControlSections]::All)
+      $sddl = $sec.GetSecurityDescriptorSddlForm('All')
+      $new  = [regex]::Replace($sddl, '\(D;[^)]*\)', '')      # 剔除所有 Deny ACE
+      $s2   = New-Object System.Security.AccessControl.RegistrySecurity
+      $s2.SetSecurityDescriptorSddlForm($new)
+      $k.SetAccessControl($s2)
+      ```
+      恢复默认继承：把 SDDL 头部 `D:PAI` / `D:P` 改成 `D:AI`。
+    - **为什么这条路根本不该走**：① 对未提权进程零增益 —— Medium 完整性本来就写不了 `HKLM`；② 对提权进程有害 —— 挡住 `gpupdate` 和一切后续维护；③ 真正的保护已有三重实测机制：策略键本身（`powercfg` 直写 exit 1 被拒）、策略键对生效值的强制（方案原值改成 1 生效值仍是 2）、看门狗 SYSTEM 每 5 分钟自愈。
+
+## 适用范围与不适用范围
+
+- 适用：Windows 10/11 笔记本；需要"按按钮/合盖 = 真休眠"的场景；第三方电源/性能工具会周期性 reset 电源方案的机器。
+- 不适用：固件支持 S3 且用户希望保留快速唤醒（S3）的场景——关掉 S0 会牺牲联网待机；服务器/Hyper-V 宿主（`PlatformAoAcOverride` 会影响虚拟化待机行为，需逐机评估）。
+- 仅当策略锁确实写不进去时，才退化为"看门狗每 5 分钟修复漂移"的软锁方案。
+
+## 剩余风险
+
+- ~~最大未验证项：`PlatformAoAcOverride=0` 能否真的让 S0 从 `powercfg /a` 消失~~ → **2026-11-25 17:15 已实测确认：能，S0 整条消失（需重启才生效）**。原担心的"该机 S0 由固件强制、软件层关不掉"已被证伪。
+- `abfc2519`（ALLOWSTANDBY）实测只影响 S1-S3，**不能用它来关 S0**，这一条已纠正早期判断；关 S0 的唯一开关是 `PlatformAoAcOverride=0`（在 `Control\Power`）+ 重启。
+- 关掉 S0 现代待机会让**联网待机消失**：休眠期间网络断开、后台下载/同步暂停，唤醒需走完整 POST（比 S0 慢数秒，本机实测约 2 秒）。这是"要真休眠"必然的代价。
+- `HibernateAfterTimeout=1800` 是全局兜底；S0 已被关掉后，该值主要作用于"从休眠超时再深一层"的场景，仍建议保留。
+- 组策略键不在域环境，用户以管理员身份手动删该键即可解除锁；本机靠 `DSH-PowerButtonLock` 计划任务每 5 分钟巡检补写，存在最多 5 分钟窗口期。
+- `hiberfil.sys` 占 C 盘约 12.5 GB；用户若日后执行 `powercfg /h off` 清 C 盘，休眠会失效（参见全局记忆 `feedback-c-drive-hibernate-pagefile-off-limits.md`）。
+- **不要擅自改动用户既有的空闲超时**：本次曾把「在此时间后休眠」从 1800 秒改成 1080 秒，属于未经询问的行为变更，已还原。
+
+## 关联
+
+- 相关记录：[[踩坑-电源计划被驱动更新工具复制成同名方案且FriendlyName是REG_EXPAND_SZ]]、[[踩坑-无BOM的UTF8脚本被按GBK解码致中文路径报成文档已损坏]]、[[踩坑-PowerShell写配置带UTF8BOM让Go程序静默读不到并一层掩盖一层]]
+- 相关分类：[[03-通用/03-调试与验证/README]]
+- 相关代码、命令或文档：
+  - 任务归档 `G:\AIrenwu\01_任务归档\2026-11-25_电源按钮锁死休眠\`
+  - 脚本 `脚本\watch-power-buttons.ps1`（重写版，只判生效值）、`脚本\07-修正AoAc位置-提权.ps1`、`脚本\09-真正关闭待机状态-提权.ps1`、`脚本\10-还原休眠空闲超时-提权.ps1`
+  - 备份 `01_备份\PowerSchemes-20261125-083133.reg`、`01_备份\Control-Power-fix-20261125-123536.reg`、`01_备份\Policy-PowerSettings-noStandby-20261125-123745.reg`
+  - 关键注册表：`HKLM\SOFTWARE\Policies\Microsoft\Power\PowerSettings\<7个设置GUID>`、`HKLM\SYSTEM\CurrentControlSet\Control\Power\PlatformAoAcOverride`、`HKLM\SYSTEM\CurrentControlSet\Control\Power\HibernateAfterTimeout`
+  - **反面示例（勿照抄）**：`HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Power\PlatformAoAcOverride` —— 这个位置内核不读

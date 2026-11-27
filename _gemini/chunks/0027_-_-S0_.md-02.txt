@@ -1,0 +1,82 @@
+- 硬锁验证：写策略后 `powercfg /setacvalueindex SCHEME_CURRENT SUB_BUTTONS LIDACTION 1` 返回 **exit 1**，提示「对于此电源方案或电源设置，存在多个组策略覆盖设置。」；`Set-ItemProperty` 直写 `User\PowerSchemes\...\ACSettingIndex` 报「不允许所请求的注册表访问权。」
+- 新建方案验证：`powercfg /duplicatescheme <激活方案GUID>` 新建的方案，**未做任何写入**即读到四个按钮全为 2 → 证明策略锁对新方案同样生效。
+
+## 根因分析
+
+- 已确认的根因（两层）：
+  1. **值被重置**：Win11 的「设置」App 与第三方电源工具会对活动方案做 reset/overlay 切换，把 `HKLM\SYSTEM\CurrentControlSet\Control\Power\User\PowerSchemes\<方案>\4f971e89-…\<设置GUID>` 下的 `ACSettingIndex`/`DCSettingIndex` 重新按默认写回 1。open-revo 二进制内 grep `5ca83367`/`7648efa3`/`96996bc0`/`LIDACTION`/`SUB_BUTTONS` **全部 0 命中**，说明它不写按钮值，只是触发方案重置。
+  2. **S0 不落盘**：只写按钮动作值毫无意义，因为本机固件无 S3，按钮请求最终走 S0；`HibernateAfterTimeout` 为空时 S0 不会有超时转休眠，于是永远停在联网待机。
+- 排除过的假设：
+  - Driver Booster 每运行生成同名方案（目录 mtime 停在 2026-11-02，近期未运行；具名方案无 SUB_BUTTONS 子键）。
+  - `D:\DSH-Guard` 脚本改电源（全量 grep 零命中）。
+  - open-revo 直接写按钮设置（二进制字符串扫描零命中）。
+- 问题归属：环境/系统默认行为 + 厂商固件限制，非用户操作失误。
+
+## 最小修复
+
+按执行顺序（全部需管理员）：
+
+```powershell
+# 1) 策略硬锁四个按钮动作（AC/DC 同时锁）
+#    LID/PBUTTON/SBUTTON 索引口径：0=不操作 1=睡眠 2=休眠 3=关机
+#    UIBUTTON_ACTION 索引口径：0=睡眠 1=休眠 2=关机   ← 两套口径不同，别混用！
+$base='HKLM:\SOFTWARE\Policies\Microsoft\Power\PowerSettings'
+$map=@{
+  '5ca83367-6e45-459f-a27b-476b1d01c936'=2  # 合上盖子
+  '7648efa3-dd9c-4e3e-b566-50f929386280'=2  # 电源按钮
+  '96996bc0-ad50-47ec-923b-6f41874dd9eb'=2  # 睡眠按钮
+  'a7066653-8d6c-40a8-910e-a1f54b84c7e5'=1  # 「开始」菜单电源按钮（口径不同，1=休眠）
+}
+foreach($g in $map.Keys){
+  New-Item -ItemType Directory -Force -Path "$base\$g" | Out-Null
+  New-ItemProperty "$base\$g" -Name ACSettingIndex -Value $map[$g] -PropertyType DWord -Force | Out-Null
+  New-ItemProperty "$base\$g" -Name DCSettingIndex -Value $map[$g] -PropertyType DWord -Force | Out-Null
+}
+gpupdate /force /target:computer
+
+# 2) 关掉 S0 现代待机（重启后生效）
+#    ⚠️ PlatformAoAcOverride 必须写 Control\Power，写 Session Manager\Power 内核不读！
+New-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Power' -Name PlatformAoAcOverride -Value 0 -PropertyType DWord -Force
+#    ⚠️ 「在此时间后休眠」用用户的既有值，不要擅自改！本机原值 1800 秒。
+#    （本次曾擅自从 1800 改成 1080，属越界，已还原。新机器上先读出来再加。）
+
+# 3) 真正关掉待机 + 清空所有自动睡眠定时器（策略键一次写全）
+#    ⚠️ 别名 STANDBYIDLE 指向的是「在此时间后睡眠」29f6c1db…，不是「允许待机状态」！
+$pol = @{
+  '29f6c1db-86da-48c5-9fdb-f2b67b1f44da' = 0     # 在此时间后睡眠 → 永不自动睡
+  'abfc2519-3608-4c2a-94ea-171b0ed546ab' = 0     # 允许待机状态 → 关
+  '7bc4a2f9-d8fc-4469-b07b-33eb785aaca0' = 0     # 无人参与系统睡眠超时 → 0（第二个定时器，别漏）
+  'd4c1d4c8-d5cc-43d3-b83e-fc51215cb04d' = 0     # 远程打开时不睡眠 → 不睡
+  '9d7815a6-7ee4-497e-8888-515a05f02364' = 1800  # 在此时间后休眠 → 用用户原值
+}
+foreach($g in $pol.Keys){
+  $p = "HKLM:\SOFTWARE\Policies\Microsoft\Power\PowerSettings\$g"
+  New-Item -ItemType Directory -Force -Path $p | Out-Null
+  New-ItemProperty $p -Name ACSettingIndex -Value $pol[$g] -PropertyType DWord -Force | Out-Null
+  New-ItemProperty $p -Name DCSettingIndex -Value $pol[$g] -PropertyType DWord -Force | Out-Null
+}
+gpupdate /force /target:computer
+```
+
+> **策略键 AC 与 DC 都生效**（已 A/B 实测：`7bc4a2f9` 基线 AC=120/DC=120 → 策略写 60/60 → 读回 AC=60/DC=60 → 改 0/0 → 读回 0/0）。所以电池模式下同样锁得住，**不要只写 AC**。
+
+完整 11 个策略键（本机最终态，AC/DC 同值）：
+
+| GUID | 项目 | 值 |
+|---|---|---|
+| `29f6c1db-86da-48c5-9fdb-f2b67b1f44da` | 在此时间后睡眠 | 0 |
+| `5ca83367-6e45-459f-a27b-476b1d01c936` | 合上盖子 | 2 |
+| `7648efa3-dd9c-4e3e-b566-50f929386280` | 电源按钮 | 2 |
+| `7bc4a2f9-d8fc-4469-b07b-33eb785aaca0` | 无人参与系统睡眠超时 | 0 |
+| `833a6b62-dfa4-46d1-82f8-e09e34d029d6` | 按钮强制关机 | 0 |
+| `96996bc0-ad50-47ec-923b-6f41874dd9eb` | 睡眠按钮 | 2 |
+| `99ff10e7-23b1-4c07-a9d1-5c3206d741b4` | 打开盖子操作 | 1 |
+| `9d7815a6-7ee4-497e-8888-515a05f02364` | 在此时间后休眠 | 1800 |
+| `a7066653-8d6c-40a8-910e-a1f54b84c7e5` | 开始菜单电源按钮 | 1 |
+| `abfc2519-3608-4c2a-94ea-171b0ed546ab` | 允许待机状态 | 0 |
+| `d4c1d4c8-d5cc-43d3-b83e-fc51215cb04d` | 远程打开时不睡眠 | 0 |
+
+```powershell
+# 4) 各方案同步写一遍（策略已锁，写不进去说明锁生效，属正常）
+foreach($sc in (powercfg /list | Select-String -Pattern '([0-9a-f\-]{36})' -AllMatches).Matches.Groups){
+  foreach($g in 'LIDACTION','PBUTTONACTION','SBUTTONACTION'){

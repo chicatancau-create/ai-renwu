@@ -1,0 +1,52 @@
+    powercfg /setacvalueindex $sc SUB_BUTTONS $g 2; powercfg /setdcvalueindex $sc SUB_BUTTONS $g 2
+  }
+  powercfg /setacvalueindex $sc SUB_BUTTONS UIBUTTON_ACTION 1
+  powercfg /setdcvalueindex $sc SUB_BUTTONS UIBUTTON_ACTION 1
+}
+```
+
+配套看门狗（SYSTEM 计划任务，每 5 分钟巡检并修复漂移）：脚本
+`G:\AIrenwu\01_任务归档\2026-11-25_电源按钮锁死休眠\脚本\watch-power-buttons.ps1`，任务名 `DSH-PowerButtonLock`、`User=SYSTEM`、`RunLevel=Highest`。漂移记录写 `drift.log`（含漂移时段内启动的进程列表 + 前台窗口标题，用于反查元凶）。
+
+## 验证记录
+
+- [x] 静态检查：`powercfg /qh SCHEME_CURRENT SUB_BUTTONS` 四个按钮 AC/DC 全部 =2（`开始`菜单=1=休眠）
+- [x] 策略生效：`powercfg /setacvalueindex ... LIDACTION 1` → exit 1「存在多个组策略覆盖设置」
+- [x] 策略生效：`Set-ItemProperty` 直写 `User\PowerSchemes\...\ACSettingIndex` → 「不允许所请求的注册表访问权」
+- [x] 新方案覆盖：`powercfg /duplicatescheme` 新建方案未写入即读到 2/2/2
+- [x] 注册表落盘：`Control\Power\PlatformAoAcOverride=0`（**正确位置**）、`HibernateAfterTimeout=1800`、`HibernateEnabled=1`
+- [x] **重启后策略锁仍生效**：4 个按钮键 + 3 个休眠键全部保持（7 个策略键，重启验证）
+- [x] **重启后行为**：12:31:33 开机至 12:46，`Kernel-Power` 42/506/507 事件**零条**，一次没进 S0
+- [x] 允许待机状态：`abfc2519-…` AC=0 DC=0，类别名 `ALLOWSTANDBY`，可选值仅「关闭/启用」
+- [x] 休眠超时：`9d7815a6-…` AC=1800 DC=1800（30 分钟，**还原为原值，不擅自改动**）
+- [x] 在此时间后睡眠：`29f6c1db-…` AC=0 DC=0（永不自动睡）
+- [x] 看门狗：`State=Ready User=SYSTEM Result=0`，已重写为**只判断 powercfg 生效值**（原先读原始注册表值会误报），连续 5 次运行零误报；反向测试证明能发现并修复被破坏的策略键
+- [x] 稳定性：连续 60 秒采样 6 次，lid/pwr/slp 均稳定为 2，无漂移
+- [x] **终审全项通过**（2026-11-25 13:14，脚本 `脚本\20-最终终审-提权.ps1` → `_final-audit.txt`，`RESULT: ALL PASS (0 issues)`）：
+  - 11 个策略键全部 AC=DC 且等于期望值，**无多余策略键**
+  - 2 个可见方案生效值全为 `lid=2 pwr=2 slp=2 ui=1`
+  - 休眠底座：`HibernateEnabled=1`、`PlatformAoAcOverride=0`（正确位置）、`HiberbootEnabled=0`、`hiberfil.sys` 12.47 GB 存在，**无错误位置残留、无臆造值**
+  - 看门狗脚本 8,728 B、UTF-8 BOM 正确、计划任务 `State=Ready User=SYSTEM triggers=4 Last=13:10:01 Result=0x0 Next=13:15:00`
+  - 四个自动睡眠定时器全部 =0
+- [x] **重启后确认 S0 是否从 `powercfg /a` 消失 → 已于 2026-11-25 17:15 实测确认消失**：`15:51:44` 重启（`Kernel-Boot ID=27 boot type 0x0` 冷启动），`powercfg /a` 里 **S0 整条从"有此睡眠状态"掉进"没有以下睡眠状态"**，只剩「休眠」一项；重启后 1 小时 25 分内 `ID=42`/`ID=506`/`ID=507` **全 0 次**（对照：上一轮开机 1.5 小时内 3 次 `Idle Timeout` 进 S0）。
+- [x] **实际合盖/按电源键确认真休眠 → 已于 2026-11-25 13:42 实测通过**：`13:42:12 Kernel-Power ID=42 Sleep Reason: Button or Lid` → `13:52:04 Kernel-General ID=1 Time Delta 589283 ms`（时钟停走 9 分 49 秒）→ `13:52:05 Kernel-Boot ID=30 固件 POST` + `ID=27 boot type 0x2` → `13:52:06 Power-Troubleshooter Sleep 13:42:11 → Wake 13:52:06`（低功耗 9 分 55 秒）。**真休眠三件套全中，端到端链路闭环。** 唤醒耗时约 2 秒（`13:52:05 → 13:52:07`）。
+- [x] **空闲路径进 S0 的问题 → 已随 15:51 重启消除**：重启前那轮开机有 3 次 `ID=506 entering Modern Standby Reason: Idle Timeout`（`13:12:22`/`13:52:05`/`13:52:36`）；重启后同长度窗口 **0 次**。根因是 `PlatformAoAcOverride=0` 需重启才被内核读取。
+- [x] **穷尽审查：已无任何已知写入点能改回睡眠**（2026-11-25 13:27，脚本 `脚本\35-补充审查-提权.ps1` → `_extra-audit.txt`，exit=0）：
+  - 7 个真实方案的**注册表原始值**全部 `raw AC=2 DC=2`（含 `30e90e4f`/`66666666`/`8c5e7fda`/`a1841308`/`c670b6e6`）→ 策略层 + 方案层双保险
+  - 全机 Policies 电源位置只有 `HKLM:\SOFTWARE\Policies\Microsoft\Power\PowerSettings` 一处；`Windows\PowerManagement`、`Windows\Power`、`SYSTEM\CurrentControlSet\Policies\Microsoft\Power`、`HKCU:\...\Power` 全部不存在
+  - 计划任务 / 服务中提到 `powercfg`/`hibernat`/`SetSuspendState`：**零命中**
+  - 本地组策略 `Machine\Registry.pol`（888 B，11-10）与 `User\Registry.pol`（8 B）无电源条目；`PartOfDomain=False`、`WORKGROUP`
+  - `Kernel-Power ID=187`（程序调 `SetSuspendState`）近 7 天 15 次，最近 `11-24 23:54:47`（13.5 小时前）→ **全部在改造之前**；本次开机后 0 次
+  - 本次开机（`12:31:33`）后 `ID=42`（实际进入睡眠）**0 次**
+- [x] **ACL 加固失败后完全回滚并复验**（13:26）：11 个策略键 `Deny=0`、`protected=False`、AC/DC 全对、异常数 0；回滚后反向测试（把 `99ff10e7` AC 改 0 → SYSTEM 看门狗 `13:26:37 DRIFT` → `restored` → 复查 AC=1 DC=1）**自愈能力未受影响**
+
+### 残留方案键：不影响按钮，但要知道它们存在
+
+`powercfg /list` 只显示 2 个方案，而 `HKLM\SYSTEM\CurrentControlSet\Control\Power\User\PowerSchemes` 下有 **10 个方案键**。区别如下（全部实测）：
+
+| 方案 GUID | 名称 | SUB_BUTTONS | 性质 |
+|---|---|---|---|
+| `2f999320-…` | Ultimate Performance | 有 | 可见 · **当前激活** |
+| `381b4222-…` | Balanced | 有 | 可见 |
+| `30e90e4f-…` | Ultimate Performance（同名克隆） | 有 | 残留 |
+| `66666666-…` | PowerX v2 | 有 | 残留 · 第三方 |

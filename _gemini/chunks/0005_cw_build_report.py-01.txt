@@ -1,0 +1,113 @@
+﻿# -*- coding: utf-8 -*-
+# 只读组装 G:\AIrenwu\02_项目代码\gemini-pack\01-CodeWeave-快照.md
+# 所有嵌入内容均从 G:\CodeWeave 磁盘真实读取；本脚本不写入 CodeWeave 任何文件。
+import os, sys
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
+ROOT = r"G:\CodeWeave"
+OUT = r"G:\AIrenwu\02_项目代码\gemini-pack\01-CodeWeave-快照.md"
+BUDGET = 69500  # 字节，任务上限 70KB，留余量
+
+EXCLUDE = {"node_modules", ".git", "dist", "build", "out", ".next", "coverage", "__pycache__", ".venv", ".gradle"}
+PRIVACY = {".local", ".claude", "工作区"}
+MAXDEPTH = 3
+
+# ---------- 目录树（与 _cw_tree.py 同参数） ----------
+def walk_dirs(d):
+    for base, dirs, files in os.walk(d):
+        dirs[:] = sorted(x for x in dirs if x not in EXCLUDE and x not in PRIVACY)
+        yield base, dirs, files
+
+def count_files(d):
+    return sum(len(f) for _, _, f in walk_dirs(d))
+
+tree_lines = []
+def tree(d, depth):
+    try:
+        entries = list(os.scandir(d))
+    except OSError as e:
+        tree_lines.append("    " * depth + "[读取失败: %s]" % e)
+        return
+    entries.sort(key=lambda e: (not e.is_dir(), e.name.lower()))
+    dirs = [e for e in entries if e.is_dir() and e.name not in EXCLUDE]
+    files = [e for e in entries if not e.is_dir() and e.name not in EXCLUDE]
+    for e in dirs:
+        ind = "    " * depth
+        if e.name in PRIVACY:
+            tree_lines.append("%s%s/  [隐私目录,不展开;内含约%d个文件]" % (ind, e.name, count_files(e.path)))
+            continue
+        tree_lines.append("%s%s/  (%d 文件)" % (ind, e.name, count_files(e.path)))
+        if depth + 1 < MAXDEPTH:
+            tree(e.path, depth + 1)
+    shown = files if len(files) <= 15 else files[:5]
+    for e in shown:
+        ind = "    " * depth
+        try:
+            sz = e.stat().st_size
+        except OSError:
+            sz = -1
+        tree_lines.append("%s%s  (%dB)" % (ind, e.name, sz))
+    if len(files) > 15:
+        tree_lines.append("%s…(其余 %d 个文件略)" % ("    " * depth, len(files) - 5))
+
+tree(ROOT, 0)
+TREE = "\n".join(tree_lines)
+
+# ---------- 文件读取/嵌入 ----------
+def rd(rel):
+    p = os.path.join(ROOT, rel)
+    with open(p, "r", encoding="utf-8", errors="replace") as fh:
+        return fh.read()
+
+def lines_of(rel):
+    t = rd(rel)
+    ls = t.split("\n")
+    if ls and ls[-1] == "":
+        ls.pop()
+    return ls
+
+def sz(rel):
+    return os.path.getsize(os.path.join(ROOT, rel))
+
+def find_line(rel, needle):
+    for i, ln in enumerate(lines_of(rel), 1):
+        if needle in ln:
+            return i
+    return None
+
+def ref(rel, needle):
+    n = find_line(rel, needle)
+    return "G:\\CodeWeave\\%s:%s" % (rel, n if n else "行号未确认")
+
+LANG = {".json": "json", ".ts": "ts", ".tsx": "tsx", ".mjs": "js", ".js": "js",
+        ".cpp": "cpp", ".hpp": "cpp", ".kt": "kotlin", ".kts": "kotlin",
+        ".yaml": "yaml", ".md": "markdown", ".html": "html", ".xml": "xml",
+        ".tsv": "text", ".txt": "text", ".yaml": "yaml", ".properties": "properties"}
+
+def lang_of(rel):
+    return LANG.get(os.path.splitext(rel)[1].lower(), "text")
+
+def embed(rel, a=None, b=None, numbered=False, note=None):
+    r"""嵌入 G:\CodeWeave\<rel>；a/b 为 1 基行号闭区间；numbered=True 时带行号。"""
+    ls = lines_of(rel)
+    total = len(ls)
+    full = a is None
+    seg = ls if full else ls[a - 1:b]
+    head = "G:\\CodeWeave\\%s" % rel
+    if full:
+        head += "（全文 %d 行，%d 字节）" % (total, sz(rel))
+    else:
+        head += "（第 %d–%d 行 / 共 %d 行，%d 字节%s）" % (a, min(b, total), total, sz(rel), "，截断" if b < total else "")
+    if note:
+        head += "　" + note
+    body = "\n".join(("%d: %s" % (a + i, ln)) if numbered else ln for i, ln in enumerate(seg)) if not full else "\n".join(
+        ("%d: %s" % (i + 1, ln)) if numbered else ln for i, ln in enumerate(seg))
+    return "#### " + head + "\n\n````" + lang_of(rel) + "\n" + body + "\n````\n"
+
+# ---------- README 发现与分类 ----------
+KNOWN_READMES = [
+    ("应用端\\项目\\README.md", None),
+    ("应用端\\项目\\native\\README.md", None),
+    ("应用端\\项目\\cert\\README.md", "cert"),
+    ("移动端\\项目\\README.md", None),
+    ("网页端\\项目\\README.md", None),

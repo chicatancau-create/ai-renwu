@@ -1,0 +1,73 @@
+---
+title: "环境变量体检与整理：失效路径、重复 PATH 项、缺失的 SDK/HOME 变量"
+date: 2026-11-25
+domain: common
+category: "04-工程规范与安全"
+status: verified
+severity: medium
+stack: ["Windows 11", "PowerShell 5.1", "注册表 HKCU/HKLM Environment", "JDK 25", "Maven 3.10.0", "Python 3.15.2", "Node 24.15.0", "DevEco Studio", "Android SDK"]
+tags: ["环境变量", "PATH", "失效路径", "MAVEN_HOME", "DEVECO_SDK_HOME", "ANDROID_HOME", "python3 存根", "注册表"]
+---
+
+# 问题：本机编程类环境变量存在失效路径、重复 PATH 项与关键变量缺失
+
+## 一句话结论
+
+2026-11-25 全量核验 61 个环境变量，发现 **3 个变量指向不存在的路径**（`MAVEN_HOME`、`AQUA_VM_OPTIONS`、`RUSTROVER_VM_OPTIONS`）、**3 条用户 PATH 项冗余/失效**（`C:\node-global` 联接重复、`D:\Git\cmd` 与机器级重复、`C:\Users\Admin\.dotnet\tools` 目录不存在），并**缺失 3 个编程必需变量**（`DEVECO_SDK_HOME`、`ANDROID_HOME`、`ANDROID_SDK_ROOT`）；另发现 `python3` 在本机解析到 0 字节存根（exit 9009）。全部已修复并实测回读，修复后失效路径变量数 = 0。
+
+## 触发条件与影响
+
+- 项目或功能：本机全部编程工具链（Java/Maven、Python、Node、.NET、C/C++、HarmonyOS、Android、Rust/JetBrains 全家桶）
+- 环境与版本：Windows 11；PS 5.1.28000.3365；JDK Temurin 25.0.5+8；Maven 3.10.0；Python 3.15.2；Node v24.15.0 / npm 11.12.1；.NET SDK 11.0.100；uv 0.13.8；git 2.55.0
+- 触发条件：多次迁移安装目录（C→D）、装/卸 JetBrains 产品、npm 前缀换过
+- 影响范围：①`MAVEN_HOME` 失效 → 依赖 `%MAVEN_HOME%` 的脚本/IDE 读到不存在目录；②DevEco 命令行 hvigor 无 `DEVECO_SDK_HOME` → ERROR 00303217；③Android 命令行 adb 需绝对路径；④`python3` 调用失败（exit 9009）
+
+## 复现步骤
+
+1. 前置条件：无
+2. 操作或命令：
+   ```powershell
+   # 逐项核验所有含盘符路径的变量
+   foreach($scope in 'Machine','User'){
+     $k = Get-Item $(if($scope -eq 'Machine'){'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\Environment'}else{'HKCU:\Environment'})
+     foreach($n in $k.GetValueNames()){
+       $v = $k.GetValue($n)
+       if($v -is [string] -and $v -match '^[A-Za-z]:\\' -and -not (Test-Path -LiteralPath $v)){ "$scope / $n = $v" }
+     }
+   }
+   # PATH 存在性 + 重复项
+   $all = @(); foreach($s in 'Machine','User'){ foreach($p in ([Environment]::GetEnvironmentVariable('PATH',$s) -split ';')){ if($p.Trim()){ $all += $p.Trim().TrimEnd('\') } } }
+   $all | Group-Object | Where-Object Count -gt 1
+   ```
+3. 预期结果：无输出
+4. 实际结果（修复前）：
+   - `User / MAVEN_HOME = C:\apache-maven-3.9.16`（实际 Maven 在 `C:\dev\apache-maven-3.10.0`）
+   - `User / AQUA_VM_OPTIONS = D:\JAVA\jetbra\vmoptions\aqua.vmoptions`（`D:\JAVA\jetbra` 整个目录不存在）
+   - `User / RUSTROVER_VM_OPTIONS = D:\JAVA\jetbra\vmoptions\rustrover.vmoptions`
+   - 重复项：`D:\Git\cmd`（机器级 + 用户级各一份）
+   - 缺失：`DEVECO_SDK_HOME`、`ANDROID_HOME`、`ANDROID_SDK_ROOT`
+   - `python3` → `C:\Users\Admin\AppData\Local\Microsoft\WindowsApps\python3.exe`（**0 字节**，`python3 -V` 返回 exit 9009）
+
+## 证据
+
+- 修复前失效路径扫描（3 条命中，原文见归档备份 `env_snapshot_20261125_144138.csv`）
+- `C:\node-global` 是 `D:\node-global` 的 Junction（`Get-Item` LinkType=Junction，Target=D:\node-global），两者在用户 PATH 中相邻出现 → 同一物理目录占两个入口
+- `C:\Users\Admin\.dotnet\tools` 不存在，且 `dotnet tool list -g` 输出只有表头（未安装任何全局工具）
+- `where python3` → `C:\Users\Admin\AppData\Local\Microsoft\WindowsApps\python3.exe`；`(Get-Item ...).Length` = 0；执行 exit 9009（该存根是"应用执行别名"占位符，未安装商店版 Python）
+- NuGet `py -0p` 显示 `-V:3.15 * D:\PyCharm\Python\python.exe`，是唯一注册的默认 CPython
+
+## 根因分析
+
+- 已确认的根因①：`MAVEN_HOME` 是旧版本残留 —— PATH 里用的是 `C:\dev\apache-maven-3.10.0\bin`（3.10.0，能用），但 `MAVEN_HOME` 仍写 `C:\apache-maven-3.9.16`（3.9.16 已删）。两者不同步是因为 Maven 升级时只改了 PATH 没改 `MAVEN_HOME`
+- 已确认的根因②：`D:\JAVA\jetbra\vmoptions\*` 是历史批次写入的路径；实际所有 JetBrains 产品（机器级 20 个 `*_VM_OPTIONS`）统一指向 `D:\PyCharm\pojie2099\vmoptions\`。这两条用户级变量是早期遗留，路径从未存在过（该目录创建时间早于目录迁移）
+- 已确认的根因③：`C:\node-global` Junction 是 2026-11 迁移时为了兼容 `C:\` 绝对路径建的；迁移完成后 `D:\node-global` 已被写进 PATH，Junction 入口就重复了
+- 已确认的根因④：`DEVECO_SDK_HOME` 从未写入环境变量 —— 此前每次 hvigor 命令行构建都是会话内临时 `$env:DEVECO_SDK_HOME=`（见 [[踩坑-DevEco命令行hvigor两坑-缺SDK环境变量报00303217与unsigned警告致假exit1]]），所以换新 shell 就复现 00303217
+- 排除过的假设：`vswhere`/`VSINSTALLDIR` 无关（本机未装 Visual Studio）；`HF_HOME`、`UV_CACHE_DIR`、`CODEX_HOME`、`DSH_HOME` 均正常指向 D 盘且目录存在，不是问题
+- 问题归属：修改前已有（历史遗留）
+
+## 最小修复
+
+三类改动，全部只动用户级（`HKCU\Environment`），机器级 38 项一字未动：
+
+1. **修正失效路径（3 条）**
+   - `MAVEN_HOME`: `C:\apache-maven-3.9.16` → `C:\dev\apache-maven-3.10.0`

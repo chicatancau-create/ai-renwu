@@ -1,0 +1,91 @@
+        with open(mj, encoding="utf-8") as f:
+            MJ = json.load(f)
+        n = sum(len(v.get("context_limits", {})) for v in MJ.values() if isinstance(v, dict))
+        rec("PASS" if n else "WARN", "models.json parses", "%d model limits" % n)
+    except Exception as e:
+        rec("FAIL", "models.json parses", "%s" % e)
+else:
+    rec("WARN", "models.json", "MISSING (falls back to conservative 128k)")
+
+print()
+print("=" * 100)
+print("I. recent log anomalies (headroom + cc-switch)")
+print("=" * 100)
+PATTERNS = [
+    ("headroom ERROR/Traceback", HRLOG, r"\bERROR\b|Traceback|CRITICAL"),
+    ("headroom Kompress failure", HRLOG, r"Kompress.*(failed|requires onnxruntime|not cached)"),
+    ("cc-switch balance/circuit", CCLOG, r"Insufficient account balance|所有供应商.*熔断"),
+]
+for label, path, pat in PATTERNS:
+    if not os.path.isfile(path):
+        rec("WARN", label, "log missing: " + path)
+        continue
+    with open(path, encoding="utf-8", errors="replace") as f:
+        lines = f.readlines()
+    tail = lines[-4000:]
+    hits = [l.rstrip() for l in tail if re.search(pat, l)]
+    rec("PASS" if not hits else "WARN", label,
+        "none in last %d lines" % len(tail) if not hits
+        else "%d hits, last: %s" % (len(hits), hits[-1][:170]))
+if os.path.isfile(HRLOG):
+    with open(HRLOG, encoding="utf-8", errors="replace") as f:
+        alltxt = f.read()
+    loaded = "Kompress ONNX loaded" in alltxt
+    rec("PASS" if loaded else "FAIL", "Kompress has loaded at least once", str(loaded))
+
+print()
+print("=" * 100)
+print("J. zero-byte config scan (phase-1 WorkBuddy corruption class)")
+print("=" * 100)
+for label, root in [("workbuddy", os.path.join(HOME, ".workbuddy")),
+                    ("workbuddy-ai", os.path.join(HOME, ".workbuddy-ai"))]:
+    zeros, total = [], 0
+    for dp, dns, fns in os.walk(root):
+        dns[:] = [d for d in dns if d not in ("node_modules", ".git")]
+        for fn in fns:
+            if not fn.endswith(".json"):
+                continue
+            p = os.path.join(dp, fn)
+            try:
+                if os.path.getsize(p) == 0:
+                    zeros.append(os.path.relpath(p, root))
+                    continue
+                with open(p, "rb") as fh:
+                    if not fh.read(4096).strip(b"\x00"):
+                        zeros.append(os.path.relpath(p, root))
+                total += 1
+            except OSError:
+                pass
+    rec("PASS" if not zeros else "WARN", "%s all-zero/empty JSON" % label,
+        "%d/%d clean" % (total, total) if not zeros else "%d bad: %s" % (len(zeros), zeros[:6]))
+
+print()
+print("=" * 100)
+print("K. disk space + backups")
+print("=" * 100)
+for drv in ("C:\\", "D:\\", "G:\\"):
+    try:
+        u = shutil.disk_usage(drv)
+        pct = u.free / u.total * 100
+        rec("PASS" if pct > 8 else "WARN", "free space %s" % drv,
+            "%.1f GB free (%.1f%%)" % (u.free / 1e9, pct))
+    except OSError as e:
+        rec("WARN", "free space %s" % drv, str(e))
+for cand in [r"G:\AIrenwu\03_备份", r"G:\AIrenwu\_backup"]:
+    if os.path.isdir(cand):
+        n = sum(len(f) for _, _, f in os.walk(cand))
+        rec("PASS", "backups at %s" % cand, "%d files" % n)
+        break
+else:
+    rec("WARN", "backup directory", "not found at either known location")
+
+print()
+print("=" * 100)
+print("SUMMARY")
+print("=" * 100)
+for lv in ("FAIL", "WARN", "INFO", "PASS"):
+    items = [r for r in RESULTS if r[0] == lv]
+    print("%s: %d" % (lv, len(items)))
+    if lv != "PASS":
+        for _, n, d in items:
+            print("   - %s :: %s" % (n, d[:190]))

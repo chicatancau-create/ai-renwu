@@ -1,0 +1,54 @@
+---
+title: 反重力汉化每次需单跑工具：动态 CDP 注入随会话消失，用官方一键快捷方式并 repoint 原启动入口整合
+date: 2026-11-24
+domain: common
+category: 03-调试与验证
+status: verified
+severity: medium
+stack: Windows 11 / Electron / Go 单文件工具 / CDP / WScript.Shell lnk
+tags: [Antigravity, 反重力, 汉化, antigravity-hans, CDP, 快捷方式, 启动整合, 自动更新]
+---
+
+# 一句话结论
+
+普通版 Antigravity 的汉化工具 antigravity-hans 走**动态 CDP 注入**（注入随页面关闭消失），所以每次启动应用都要单跑工具；静态补丁 `--patch` **仅支持 Antigravity IDE** 且不含 Swarm 会话页，对普通版不可用。整合正解＝官方 `--shortcut --app` 生成的一键启动链（`conhost.exe --headless "<hans.exe>" --app --nogui`），并把用户**原有开始菜单 lnk 备份后 repoint** 到同一条命令，名字图标不变、习惯不变。其上再包一层 launch.ps1 自动更新包装器（用户 2026-11-24 追加诉求）：每次启动比对 GitHub releases/latest 资产 digest，有新版则校验+备份旧 exe+替换后再启动，任何检查失败回落旧版不阻塞启动。
+
+# 触发条件与影响
+
+- 用户装了 github.com/yuexps/Antigravity-Hans 的 Windows 单文件 exe，每次启动 Antigravity 后还要双击汉化工具才变中文。
+- 影响：体验割裂；误以为工具"没装好/没生效"。
+- 追加诉求：汉化工具上游更新后旧词库配新应用会出问题，要求每次启动自动检查并更新工具。
+
+# 复现步骤
+
+1. 双击 D:\Antigravity\Antigravity.exe（或原开始菜单快捷方式）→ 英文界面。
+2. 再跑 antigravity-hans-windows-amd64.exe 选 APP → 变中文；关掉应用重开又英文。
+
+# 证据
+
+- 产品身份：D:\Antigravity\Antigravity.exe VersionInfo ProductName=Antigravity、ProductVersion=2.35.0.0；卸载注册表 DisplayName="Antigravity 2.35.0"；%LOCALAPPDATA%\Programs\Antigravity IDE 不存在 → **普通版，非 IDE**。
+- 工具机制（README + exe 字符串）：动态=CDP `Page.addScriptToEvaluateOnNewDocument`/`Runtime.evaluate`/`webSocketDebuggerUrl`，不改安装目录；静态标记 workbench.html/product.json/argv.json/`window.__antigravityZhPatchFingerprint` 仅 IDE 路径。
+- 官方快捷方式实测目标：`C:\Windows\System32\conhost.exe` + `--headless "D:\AI-Tool-State\antigravity-hans\antigravity-hans.exe" --app --nogui`（conhost --headless 隐藏监视器控制台；--nogui 无交互）。
+- 启动链实测：应用命令行带 `--remote-debugging-port=58321 --remote-debugging-address=127.0.0.1`（端口由启动链开，外部守护 attach 不到普通启动的实例）；监视器 pid 文件 C:\Users\Admin\AppData\Roaming\antigravity-hans\monitor-antigravity.pid。
+- 抓图证实中文：菜单「工作区/查看/窗口」、侧栏「新建对话/自动化/自定义/项目」、主区「嗨，Grii，今天想构建什么?」、输入框「询问什么都可以。@ 引用，/ 执行动作」、右下 EN 切换圆钮。见归档 04_产物\hans_launch_capture.png 与 verify_result.json。
+- exe SHA256=A1330F1F955515D5024F403C343384F04FEE2D1A4E8FDB58D1C0BEE978C259FA（H:\下载 原件与稳定副本一致）。
+- 上游发布事实：GitHub repos/yuexps/Antigravity-Hans releases/latest = v0.5.0（2026-11-23）；windows 资产 digest sha256:a1330f1f955515d5024f403c343384f04fee2d1a4e8fdb58d1c0bee978c259fa == 本机 exe 哈希；API 资产自带 digest 字段→校验无需每次下 SHA256SUMS（无 digest 才回落解析）；直连与代理 127.0.0.1:7890 均 http=200 约 1.0s。
+
+# 根因分析
+
+动态注入是**会话级**的：CDP 脚本注入活在当前页面/进程里，应用退出即消失；监视器进程也必须随应用启动并拿到调试端口。因此"装一次永久汉化"在普通版上不存在（静态补丁只覆盖 IDE 且不含会话页）。用户每次单跑工具不是故障，是模式使然；要"启动即汉化"只能把监视器纳入启动链。
+
+# 最小修复
+
+1. 稳定目录 D:\AI-Tool-State\antigravity-hans\antigravity-hans.exe（从 H:\下载 复制，哈希核对；下载目录易被清理、ASCII 路径避编码坑）。
+2. `antigravity-hans.exe --shortcut --app` → 桌面生成「Antigravity 中文.lnk」。
+3. 备份开始菜单 C:\Users\Admin\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Antigravity.lnk 后 repoint：Target=conhost.exe；Arguments=--headless powershell.exe -NoProfile -ExecutionPolicy Bypass -File "D:\AI-Tool-State\antigravity-hans\launch.ps1"；WorkingDirectory=稳定目录；IconLocation=D:\Antigravity\Antigravity.exe,0（名字图标不变）。桌面「Antigravity 中文.lnk」同改此链；改前备份 *.chain1.bak。
+4. launch.ps1＝自动更新包装器（纯 ASCII）：每次启动 Get-FileHash 本地 exe → curl releases/latest（-m 10，失败回落注册表 ProxyServer 代理）→ 比对 windows 资产 digest（无 digest 回落解析 SHA256SUMS）→ 不同则 curl -L -m 90 下载 update.download.exe → 哈希校验 → Copy 旧 exe 到 backup\antigravity-hans.prev.exe → Move 替换（被监视器锁定则先 `exe --stop < NUL` 重试一次）→ 写 version.json → 再 Start-Process "<稳定目录 exe>" '--app','--nogui' -WindowStyle Hidden；任何失败只记 update.log（超 200KB 截尾 100 行）并回落旧版启动，不阻塞。-CheckOnly 只检查不启动。
+5. 不做 IFEO/进程钩子/开机守护：普通启动不开调试端口，守护只能 attach 失败或重启应用，体验更差。
+
+# 验证记录
+
+- 空闲门控脚本（用户空闲≥10s 才动 GUI）用与 lnk 完全相同命令行启动：app_pid=31720、窗口标题 Antigravity、监视器进程在、命令行含调试端口；PrintWindow 抓图全中文（见证据）。
+- 验证后 `hans --stop` + taskkill 恢复原状，remaining_pids=[]。
+- 自动更新分支隔离实测（D:\AI-Tool-State\hans-update-test 假旧 exe）：下载→校验→备份→替换全链 5s，替换后哈希与上游 digest 吻合，测毕目录已删。
+- 编码坑修复复验：conhost --headless 下 -CheckOnly 记 `up-to-date tag=v0.5.0 sha256=a1330f1f…`（2026-11-24 10:59:13）；修复前同环境 ConvertFrom-Json 报 error(12410) 但回落机制仍保证启动+中文（capture2 全中文）。

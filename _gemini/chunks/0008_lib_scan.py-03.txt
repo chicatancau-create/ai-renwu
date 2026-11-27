@@ -1,0 +1,87 @@
+            w = len(re.findall(r"\[\[[^\[\]]+?\]\]", text))
+            m = len(re.findall(r"\[[^\[\]]*?\]\([^)]*?\)", text))
+            wiki_n += w; mdlink_n += m
+            if top == "05-外部资料库":
+                wiki_in += w; md_in += m
+            else:
+                wiki_out += w; md_out += m
+        else:
+            big_skipped += 1
+    for d in FOCUS_DIRS:
+        if not any(s["has_fm"] for s in fm_samples[d]):
+            for rel in sorted(md_by_dir.get(d, [])):
+                if os.path.basename(rel).lower() != "readme.md" and not any(s["path"] == rel for s in fm_samples[d]):
+                    t2 = read_text(os.path.join(ROOT, rel))
+                    fm2, _ = fm_parse(t2)
+                    fm_samples[d].append({"path": rel, "has_fm": fm2 is not None, "fm": fm2})
+                    break
+    D["fm_by_top"] = fm_by_top
+    D["links_scope"] = {"wiki_05": wiki_in, "md_05": md_in, "wiki_own": wiki_out, "md_own": md_out}
+    D["fm_yes"], D["fm_no"] = fm_yes, fm_no
+    D["field_ctr"], D["gemini_ctr"] = field_ctr, gemini_ctr
+    D["fm_by_dir"], D["fm_samples"] = fm_by_dir, fm_samples
+    D["wiki_n"], D["mdlink_n"], D["big_skipped"] = wiki_n, mdlink_n, big_skipped
+    D["md_by_dir"] = dict(md_by_dir)
+
+    # ---- 索引文件 ----
+    manifests, index_jsons = [], []
+    for rel, sz, ext in files:
+        base = os.path.basename(rel).lower()
+        if ext == ".json" and "manifest" in base:
+            manifests.append((rel, sz))
+        elif ext == ".json" and "index" in base:
+            index_jsons.append((rel, sz))
+    D["manifests"] = sorted(manifests)
+    D["index_jsons"] = sorted(index_jsons)
+    def pick(pred):
+        for rel, sz in sorted(manifests):
+            if pred(rel):
+                return rel
+        return None
+    exp = pick(lambda r: r.startswith("06-实验代码" + os.sep + "E01"))
+    u01 = pick(lambda r: "U01-" in r)
+    proj = pick(lambda r: re.search(r"[\\/]P0\d", r))
+    D["manifest_exp"] = {"path": exp, "text": read_text(os.path.join(ROOT, exp)) if exp else None}
+    D["manifest_u01"] = {"path": u01, "text": read_text(os.path.join(ROOT, u01)) if u01 else None}
+    D["manifest_proj"] = {"path": proj, "text": read_text(os.path.join(ROOT, proj)) if proj else None}
+    D["index_samples"] = [{"path": p, "head": head_lines(read_text(os.path.join(ROOT, p)), 30)}
+                          for p, _ in sorted(index_jsons)[:3]]
+
+    # ---- scripts/ ----
+    scripts = []
+    sdir = os.path.join(ROOT, "scripts")
+    if os.path.isdir(sdir):
+        for fn in sorted(os.listdir(sdir)):
+            fp = os.path.join(sdir, fn)
+            if os.path.isfile(fp):
+                scripts.append({"name": fn, "size": os.path.getsize(fp),
+                                "head": head_lines(read_text(fp), 30)})
+    D["scripts"] = scripts
+    D["build_index_exists"] = os.path.isfile(os.path.join(sdir, "build-index.js"))
+
+    # ---- .github / .workbuddy ----
+    gh = []
+    for dp, dn, fn in os.walk(os.path.join(ROOT, ".github"), onerror=onerror):
+        dn[:] = sorted(dn)
+        for f in sorted(fn):
+            fp = os.path.join(dp, f)
+            gh.append((os.path.relpath(fp, ROOT), os.path.getsize(fp)))
+    D["github_files"] = gh
+    wfs = []
+    wfdir = os.path.join(ROOT, ".github", "workflows")
+    if os.path.isdir(wfdir):
+        for fn in sorted(os.listdir(wfdir)):
+            fp = os.path.join(wfdir, fn)
+            if os.path.isfile(fp):
+                text = read_text(fp)
+                is_verify = "verify-all" in fn.lower()
+                wfs.append({"name": fn, "size": os.path.getsize(fp), "verify": is_verify,
+                            "text": text if is_verify else head_lines(text, 25)})
+    D["workflows"] = wfs
+    wb = []
+    wbdir = os.path.join(ROOT, ".workbuddy")
+    if os.path.isdir(wbdir):
+        for dp, dn, fn in os.walk(wbdir, onerror=onerror):
+            dn[:] = sorted(dn)
+            for f in sorted(fn):
+                fp = os.path.join(dp, f)

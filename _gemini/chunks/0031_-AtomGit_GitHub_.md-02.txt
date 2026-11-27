@@ -1,0 +1,43 @@
+  Gitee 回 **401 `[session-xxxx] Unauthorized`** —— Gitee 对「私有」和「不存在」统一回 401 不暴露差异。
+  ⇒ 在 Gitee 上判"仓库在不在"**不能靠匿名 HTTP 状态码**，要用登录后的 API 或网页；在 AtomGit 上可以。
+- 服务条款类事实：Gitee Pages 官方口径为「因服务维护调整，暂停提供服务」（2024-05 起多份引用），
+  启用前还需**实名认证**；仓库/单文件容量等具体配额数字**本轮未核到官方页，不写**。
+
+## 补充：一台机器同时用 AtomGit + GitHub（2026-10-15 本机实测）
+
+- 凭据互不干扰：Windows 凭据管理器按主机分条存 —— 本机实到有 `git:https://gitcode.com`，
+  GitHub 侧走 `credential.https://github.com.helper = gh.exe auth git-credential`（GitHub CLI 已登录 `chicatancau-create`）。
+- 全局已配 `credential.https://{gitee,atomgit,gitcode}.provider = generic`（这三家不是 GCM 内置 provider，不声明它会去猜 OAuth）。
+- **全局没有任何 `http.proxy`**（实测 `git config --global --list` 过滤 proxy 零命中）→ 推 GitHub 会直连、常被重置；
+  正确做法是按 URL 挂代理，别挂全局（否则国内站被绕到境外出口）：
+  `git config --global http.https://github.com.proxy http://127.0.0.1:7897`
+- 提交本身与平台无关：`add → commit` 只动本地仓库，**只有 `push` 才选目标**；一个工作目录可挂多个 remote，
+  用 `git push <remote> <branch>` 区分。身份归属看 `user.email`（本机全局是 `zhoujinwei@noreply.gitcode.com`，
+  要让 GitHub 也算给你，得把这个邮箱加进 GitHub 账号，或在仓库里 `--local` 另设）。
+- 自查三件套：`git remote -v`、`git branch -vv`（看 `ahead N` = 有 N 个提交没推）、`git log --oneline --decorate`。
+- 顺手记一条本机事故判据：练习目录 `E:\nodejs` 于 2026-10-15 11:29 被删，**整目录进了回收站**
+  （Shell.Application 枚举到 `nodejs | 原位置=E:\ | 33.9 KB`），含 `.git` 与全部提交，右键还原即可；
+  远端同名仓库则已 404，两边要分别恢复。
+
+## 补充：双端一次推送已于 2026-10-15 端到端跑通（`E:\fullstack-code`）
+
+- 配置形态：`origin` 的 `remote.origin.url` 留 GitHub 当 fetch 源，另加两条 `remote.origin.pushurl`
+  （**先 AtomGit 后 GitHub**，顺序即推送顺序，一侧挂了另一侧已先落地）。实测 `git push origin main`
+  连打两个 `To ...`，两边 HEAD 一致；`git pull` 仍只走 GitHub。
+- **按 URL 挂代理这条已实测生效**：GitHub 直连 `Recv failure: Connection was reset`，
+  配 `git config --global http.https://github.com.proxy http://127.0.0.1:7897` 后同一条 push 成功，
+  且 AtomGit 那一路仍是直连（0.3–0.5 s）。此前"未实测"的标注到此闭环。
+- AtomGit 推送时远端回 `remote: Start Git Hooks Checking [PASSED]` —— 是平台侧钩子，不是本地行为，别当报错。
+- **同一账号两个命名空间指向同一仓库**：`gitcode.com/zhoumoyukuai/fullstack-code.git` 与
+  `gitcode.com/zhoujinwei/fullstack-code.git` 匿名 `ls-remote` 返回**同一个 HEAD**（显示名与 handle 都能用）。
+- 覆盖远端历史前留一手：本次 AtomGit 自带一条只含 README 的 `Initial commit`，force push 前记下旧 SHA
+  （`b45e643`）再动手，事后要还原有据可依。
+- 交付前扫库是硬步骤：这次推公开仓库前对 163 个跟踪文件做了密钥/`.env`/私钥/手机号/身份证/全 0x00 损坏扫描，
+  唯一命中是 PNG 二进制里的巧合字节（`C@Dr.Is` 像邮箱）——**误报要认得**，别为此改图。
+
+## 补充：2026-11-12 双账号复核——代理软件已换 FlClash（端口 7897→7890），凭据已恢复且活验通过
+
+- **代理端口漂移（正文里的 7897 已过时）**：本机代理软件现为 **FlClash**（`D:\FlClash\FlClashCore.exe`，实测监听 `:: 7890`；用 `Get-NetTCPConnection -LocalPort 7890` **不加 `-State` 过滤**拿 OwningProcess 定位），**7897 已无任何监听**；系统代理 `ProxyServer=127.0.0.1:7890`（`ProxyEnable=1`）。git 按 URL 代理仍指 7897（死端口）→ 已改 `git config --global http.https://github.com.proxy http://127.0.0.1:7890`，随后 `git ls-remote https://github.com/chicatancau-create/fullstack-code.git`（私有仓库、gh 凭据助手、`GIT_TERMINAL_PROMPT=0`）rc=0 端到端验证通过。**教训：端口随代理软件漂移，用前实测活端口，别照抄正文的 7897。**
+- **凭据已恢复且活验通过**：2026-11-02 被 reject 删掉的 `git:https://gitcode.com` 条目已重新存上；gitcode/atomgit 两条都在（UserName=`zhoujinwei`），两条令牌带 Bearer 打 `GET api/v5/user` 均 200、`login=zhoumoyukuai`（同一账号）。方法见 [[03-通用/03-调试与验证/规则-GitCode令牌只读活验用api-v5用户端点]]。
+- **配置形态演进**：`E:\fullstack-code` 不再是「双 pushurl」，而是两个独立 remote：`origin`=GitHub、`atomgit`=gitcode，本地 `main` 跟踪 `atomgit/main`；`G:\cc-hud`、`G:\CodeWeave` 同为双 remote 形态。全局 gitee provider 已移除（只剩 gitcode/atomgit 两家）。
+- **GitHub 账号活验**：`gh api user -X GET` → `login=chicatancau-create`、`name=zhoumoyukuai`，账号下 7 仓库；探活必须显式 `-X GET`（见 [[03-通用/03-调试与验证/踩坑-ghapi带-f默认POST致探活404误判仓库已删]]）。

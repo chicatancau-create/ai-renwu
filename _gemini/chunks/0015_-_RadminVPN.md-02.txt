@@ -1,0 +1,75 @@
+把"除例外之外的全网"接管了；同时 `Get-DnsClientServerAddress` 显示各网卡 DNS 已被改成 **`127.0.2.2 / 127.0.2.3`**（WARP 本地解析器）。
+
+⇒ **判据升级（覆盖本条与上一条的查法）**：判"谁在接管流量"不能只查 `0.0.0.0/0`，要两条一起看：
+
+```powershell
+Get-NetRoute -AddressFamily IPv4 | Where-Object { $_.InterfaceAlias -like '*WARP*' } | Select DestinationPrefix, NextHop, RouteMetric
+Get-DnsClientServerAddress -AddressFamily IPv4 | Where-Object { $_.ServerAddresses }
+```
+
+DNS 被改成 `127.0.2.x` 是 WARP 在场的最快信号；分片前缀是它接管的实证。
+
+同轮实测到的叠加状态：Clash 仍在听 `127.0.0.1:7897`，`HKCU\...\Internet Settings` 的 `ProxyEnable=1`，
+走 7897 取出口是 `42.98.29.23 / Hong Kong / AS4760 HKT`（**不是** Cloudflare AS13335）→ 说明"应用 → Clash → Clash 自己的出站再被 WARP 抓走"是两层串联，判断出口归属时**必须分别量"走代理"和"直连"两条路**，
+只看一条会得出错误结论。另记一次冷解析样本：`ipinfo.io` 首次解析 12.05 s、`Resolve-DnsName -Server 127.0.2.2` 失败一次，
+随后三次 0.0 s（缓存命中）——**样本仅一次，不足以判 WARP 解析不稳定**，只能说明冷解析会慢，别据此下结论。
+
+## 本机选型结论（2026-10-15，写给下一次会话，别重新论证一遍）
+
+**WARP 不参与日常出境，Clash(7897) 是唯一出境口。** 依据：WARP 免费版出口是 Cloudflare 随机节点、
+不能选地区，实测「直连」出口 `104.28.208.134 / AS13335 Cloudflare`，连国内基准站都被带着绕境外；
+而 Clash 有规则分流和可选节点，GitHub 推送实测靠 `http.https://github.com.proxy=7897` 成功。
+两者同时全接管＝套娃。WARP 留作备胎时用「本地代理」档（不接管系统），不要和 Clash 同时开「流量和 DNS」。
+
+## 「感觉被限速」的量化判据（2026-10-15 同一轮补测）
+
+用户报"像被限速"。分开测之后结论是**不是限速，是国内流量被自己拐上了 Cloudflare 隧道**：
+
+| 测什么 | 实测 | 判读 |
+|---|---|---|
+| `1.1.1.1` ICMP 15 包 | 3 ms、**0% 丢包** | 物理链路和带宽正常 |
+| `223.5.5.5` ICMP 15 包 | 40 ms、0% 丢包 | 同上，出境前也正常 |
+| 网关 `192.168.0.1` ICMP | **86% 丢包** | **ICMP 限速假象**：同一条无线链路出去的 1.1.1.1 是 0% 丢包，不可能是链路在丢 |
+| TCP 建连 `1.1.1.1:443` | 5 ms | WARP 隧道对端就是 Cloudflare，就近 |
+| TCP 建连 `gitcode.com:443` | **249 ms** | **国内站正常应 <50 ms** —— 绕境外再回来的铁证 |
+| TCP 建连 `github.com:443` | 103 ms / ICMP 13% 丢包 | 出境链路本身正常范围 |
+| 网卡 | `WLAN` 协商 866.7 Mbps（`以太网 2` 已不在 Up 列表） | 本轮中途从网线换成了 WiFi |
+
+**可复用规则**：
+1. 判"被限速"必须**分层**——ICMP 丢包（可能被路由器/目标端限速，不可单独作证据）、TCP 建连延迟、TLS+首字节、吞吐，四层分开量。
+2. **给国内站建连定基线：`<50 ms` 才算直连**。测出 200 ms 以上就先怀疑"被隧道拐走"，而不是怀疑运营商。
+3. 网关 ICMP 丢包率异常时，用**同一链路出去的公网目标**做对照组；对照组 0% 丢包即可判"路由器 ICMP 限速"，别去重装驱动。
+4. 纠错一条：本会话前一轮我写过"gitcode 直连 0.3–0.5 s 挺快"，那是**绕境外之后的绝对值**，没有基线对照就下了"快"的结论——
+   以后判延迟一律先给"该目标应有的量级"，再比。
+
+## 复核更正（2026-10-15 同日，A/B 跑完）：**WARP 不是吞吐低的主因，上面那条"主嫌"结论要降级**
+
+做完 A/B 后推翻了自己：WARP **断开前后**同一国内镜像实测 6.0 Mbps → 5.3 Mbps，**没有变化**；
+断开后出口 IP 变成 `61.187.10.74 / AS4134 CHINANET`（真实电信出口），DNS 回到 `1.1.1.1/8.8.8.8`，
+`0.0.0.0/5` 分片路由数归零。⇒ **「绕境外一圈」是真的（`gitcode.com` TCP 建连 249 ms 是证据），但它不是这次下载慢的原因。**
+
+真正的两个原因（都有数）：
+
+1. **网卡只协商到 100 Mbps**：`Get-NetAdapter` 显示 `以太网 2 = 100 Mbps / FullDuplex=True / 0 错误计数`，
+   而这块卡是 Realtek **2.5GbE**。2.5G 口掉到 100M 通常是网线只通 4 芯/水晶头氧化，或对端 LAN 口只有百兆。
+   ⇒ 上限被砍掉 90% 以上，先修这个。
+2. **源站按连接/IP 限速**：同一台 `mirrors.aliyun.com`，1→3→6 条并发实测 0 / 15.0 / 20.2 Mbps（单流约 5 Mbps 封顶，多流才叠得起来）；
+   IDM 对 23.8 GB 那个任务开了 8 线程也只有 629 KB/s ≈ 5 Mbps ⇒ 多线程在该源上没有叠加效应，换网线也救不了这个任务。
+
+**方法论教训（下次照做）**：
+- 测速必须**分层 + 多流并发**：单流数字既可能是链路也可能是服务器按连接限速，只有并发叠加曲线能分开这两者。
+- 做 A/B 前**必须先确认基线状态**：本次"关之前"的快照其实已经是断开状态（用户手动断过），
+  差点让我把"同一条件测两遍"当成对照。⇒ 每次 A/B 的第一行输出要是被测组件自己的状态（这里是 `warp-cli status`）。
+- 别把"我观察到的相关性"写成"主嫌"就交付；本轮我据此下过一次错误结论。
+
+## 补充：2026-11-13 复核——出口是 WLAN；原「Radmin 抢路」判定因判据不足降级为未证实
+
+**本节是复核更正，不是新故障。** 本机网络环境已变（2026-10 网关 `192.168.0.1`、WLAN 曾在 `192.168.171.231` → 现 WLAN 网关 `192.168.226.214`），历史值不可照搬。
+
+### 实测（只读；`G:\AIrenwu\脚本库\04_规则审计\audit-snapshot.ps1` / `audit-probe2.ps1` / `audit-probe3.ps1` / `audit-probe4.ps1`）
+
+- `Find-NetRoute -RemoteIPAddress 8.8.8.8` → 本机 IP `192.168.226.18`、ifIndex=19（**WLAN**，MediaTek Wi-Fi 6E MT7922，协商 866.7 Mbps）、下一跳 `192.168.226.214`。**真实出口是 WLAN，不是 Radmin。**
+- 默认路由仅两条：WLAN `RouteMetric=0 + InterfaceMetric=35`（有效 35）；Radmin `RouteMetric=9256 + InterfaceMetric=1`（有效 9257）。Radmin 仍 Up、接口 metric 仍是 1，但路由层 9256 让它赢不了。
+- `以太网 2`（当时的真实 uplink，Realtek 2.5GbE）现已 **Disconnected**（0 bps），InterfaceMetric=75。
+- **WARP 未接管**：`warp-cli status` → `Disconnected / Reason: Manual Disconnection`（手动断开）；`Mode: Warp` 配置仍在、服务 `CloudflareWARP` 仍 Running/Automatic，但分片前缀路由（`0.0.0.0/5` 等）为 0、DNS 无 `127.0.2.x`、`Get-NetAdapter -IncludeHidden` 也无 WARP 适配器。⇒ 2026-10-15「WARP 接管全网」的状态已不存在；若日后重新连接 WARP，分片路由会回来，本节查法仍适用。
+

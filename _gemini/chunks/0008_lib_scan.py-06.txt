@@ -1,0 +1,44 @@
+        P("--- scripts/%s (%s)" % (s["name"], fmt_size(s["size"])))
+        P(s["head"])
+    P("github_files:", D["github_files"])
+    P("workflows:", [(w["name"], w["size"], w["verify"]) for w in D["workflows"]])
+    P("workbuddy_files:", D["workbuddy_files"])
+    P("=== 8 COLOCATION ===")
+    for d, c in D["colocation"].items():
+        P(d, "units:", c["units"][:25], "chosen:", c["chosen"])
+        for f, s in c["files"]:
+            P("   ", f, fmt_size(s))
+    P("=== 4 DOCS ===")
+    P("readme bytes:", len(D["readme"].encode("utf-8")) if D["readme"] else None,
+      "overview lines:", D["overview_lines"], "gitignore bytes:", len(D["gitignore"].encode("utf-8")) if D["gitignore"] else None)
+    P("handover:", D["handover"]["path"] if D["handover"] else "不存在")
+    P("=== PII FLAGS (embeds) ===")
+    for key in ("readme", "overview_full", "gitignore"):
+        _, fl = mask(D[key])
+        if fl:
+            P(key, fl[:20])
+    for w in D["workflows"]:
+        _, fl = mask(w["text"])
+        if fl:
+            P("wf:" + w["name"], fl[:10])
+    for s in D["scripts"]:
+        _, fl = mask(s["head"])
+        if fl:
+            P("script:" + s["name"], fl[:10])
+    if D["handover"]:
+        _, fl = mask(D["handover"]["head"])
+        if fl:
+            P("handover", fl[:20])
+    for k in ("manifest_exp", "manifest_proj"):
+        _, fl = mask(D[k]["text"])
+        if fl:
+            P(k, fl[:10])
+
+if __name__ == "__main__":
+    try:
+        D = collect()
+        dump(D)
+    except Exception:
+        import traceback
+        traceback.print_exc()
+        sys.exit(1)

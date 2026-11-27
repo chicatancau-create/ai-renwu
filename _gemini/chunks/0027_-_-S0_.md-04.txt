@@ -1,0 +1,40 @@
+| `8c5e7fda-…` | High performance | 有 | 残留 |
+| `a1841308-…` | Power saver | 有 | 残留 |
+| `c670b6e6-…` | Driver Booster Power Plan | 有 | 残留 · 第三方 |
+| `961cc777-…` | Better Battery-life Overlay | **无** | 纯 overlay，不承载按钮 |
+| `ded574b5-…` | Max Performance Overlay | **无** | 纯 overlay，不承载按钮 |
+| `e9a42b02-…` | Ultimate Performance | **无** | 方案无效/不可查询 |
+
+**结论：残留方案键无害，不需要清理。** 因为它们即使被第三方工具激活，按钮值同样受策略键管辖（`powercfg /duplicatescheme` 建的新方案免写入即为休眠，已验证）。真正要注意的是**不要把它们当成"还有个隐藏方案在捣乱"**——5 个有 SUB_BUTTONS 的残留方案实测读出来全是休眠。
+
+## 可复用规则
+
+1. **查按钮动作必须用 `powercfg /qh`**：`/q` 会把 LIDACTION/PBUTTONACTION/SBUTTONACTION 隐藏（Attributes=1），只显示 UIBUTTON_ACTION，据此判断"只有一项"必错。
+2. **两套索引口径不能混**：LID/PBUTTON/SBUTTON 是 `0=不操作 1=睡眠 2=休眠 3=关机`；UIBUTTON_ACTION 是 `0=睡眠 1=休眠 2=关机`。给 UIBUTTON 写 2 会变成"关机"。
+3. **防重置要走组策略键，不要只写 User 键**：`HKLM\SOFTWARE\Policies\Microsoft\Power\PowerSettings\<设置GUID>` 写 ACSettingIndex/DCSettingIndex 后，`powercfg` 与直接注册表写都会被拒，`设置` App 也改不动。写完必须 `gpupdate /force /target:computer`。
+4. **`powercfg` 的别名不可信**。`STANDBYIDLE` 实际指向「在此时间后睡眠」`29f6c1db…`；「允许待机状态」是 `abfc2519…`（别名 `ALLOWSTANDBY`）；「在此时间后休眠」是 `9d7815a6…`（单位秒）。**按 GUID 核对，别背别名。**
+5. **`PlatformAoAcOverride` 的位置是 `HKLM\SYSTEM\CurrentControlSet\Control\Power`**，不是 `Session Manager\Power`。写错位置值会安静地待着、重启也不生效，`powercfg /a` 照旧显示 S0。
+6. **`abfc2519`（ALLOWSTANDBY）实测只影响 S1-S3**，设 0 后 `powercfg /a` 里 S0 仍在、只是 S1/S2/S3 多了「当前电源策略已禁用」。**别以为设了它 S0 就没了**——那需要 `PlatformAoAcOverride=0` 且重启。**反向已验证**：`PlatformAoAcOverride=0` + 重启后，`powercfg /a` 里 S0 那一行从"此系统上有以下睡眠状态"整条移到"此系统上没有以下睡眠状态"，全机只剩「休眠」（2026-11-25 17:15 实测）。
+7. **确认是否真休眠：必须看「固件 POST + boot 0x2 + 时钟跳变」三件套，不能只看 ID=506/107 计数。** 真休眠(S4)恢复必须同时具备三个事件：
+   - `Kernel-Boot` ID=30「The firmware reported boot metrics」← 固件 POST 跑过（S0 秒醒不可能有）
+   - `Kernel-Boot` ID=27「The boot type was **0x2**」← 内核标记从休眠镜像恢复
+   - `Kernel-General` ID=1「The system time has changed」跳变 ← 休眠期间时钟停走，恢复后校准
+
+   三件全中 = 真休眠恢复；三件全无 = S0 待机恢复。
+   > ⚠️ **本条曾写错过，已纠正**。旧版规则 7 说「`ID=506` 远多于 0 而真休眠 0 次 → 从来没休眠过」，那是错的：`ID=506/507` 记的是 S0 往返，与「有没有真休眠」是**两条独立记录线，不能互相抵消**。
+   > 同批踩过的另两条错判据：① 用 `BootId` 递增判断休眠 —— 错，S0 往返也会让 BootId 涨（`11-24 21:44` BootId 90→92 实为 S0）；② 用「Boot 事件数 + 有无 507」分类 —— 错，时间窗口会把后续事件算进来，导致全部误判成 S4。
+   正确 PowerShell 查法：
+   ```powershell
+   Get-WinEvent -FilterHashtable @{LogName='System';ProviderName='Microsoft-Windows-Kernel-Boot';Id=30,27} |
+       Where-Object { $_.TimeCreated -gt (Get-Date).AddDays(-7) } |
+       Select-Object TimeCreated, Id, @{n='Msg';e={$_.Message.Split([char]10)[0]}} | Sort-Object TimeCreated
+   ```
+8. **`Test-Path C:\hiberfil.sys` 会假报 False**：该文件带 Hidden+System 属性，PowerShell 的 `Test-Path`/`Get-Item` 需 `-Force`，否则报"不存在"。最稳是 `.NET`：`(New-Object System.IO.FileInfo 'C:\hiberfil.sys').Exists`；或 `cmd /c dir /a:hs C:\hiberfil.sys`。
+9. **看门狗必须判断"生效值"而不是"原始注册表值"**：组策略锁存在时，方案注册表里的原始值会被忽略（甚至被策略拒绝写入），拿原始值判断会**每 5 分钟误报一次 DRIFT**。统一用 `powercfg /qh SCHEME_CURRENT <SUB>` 解析出的当前索引做判据。
+10. **PowerShell 5.1 读中文路径脚本必须 UTF-8 with BOM**：`write` 工具产出的无 BOM `.ps1` 会被按 ANSI 解析，中文路径变乱码 `G:\AIrenwu\01_浠诲姟褰掓。\...` 且脚本静默失败。写完后统一转 BOM。
+    > ⚠️ **转 BOM 的正确写法**（本次踩过第二次）：必须用 `[System.IO.File]::ReadAllText($f,[System.Text.Encoding]::UTF8)` 显式按 UTF-8 读，再 `[System.IO.File]::WriteAllText($f,$txt,(New-Object System.Text.UTF8Encoding($true)))` 写回。
+    > ❌ **错误写法**：`Get-Content $f -Raw` 在 PS 5.1 下**默认按 ANSI 读**，传入无 BOM 的 UTF-8 文件会把中文**二次编码成乱码**（`合上盖子` → `鍚堜笂鐩栧瓙`），文件被彻底破坏、语法检查报一堆莫名其妙的错误。
+    > 转完必须验证 BOM：`(Get-Content $f -Encoding Byte -TotalCount 3) -join ','` 应等于 `239,187,191`；再用 `[System.Management.Automation.Language.Parser]::ParseFile()` 做语法检查。
+11. **不要在注册表里臆造值名**。修 `PlatformAoAcOverride` 时顺手写了 `AoAcOverrideDefined=1`，那个名字不在任何微软文档里，属于凭印象拼的。写注册表前先 `GetValueNames()` 看现有值。
+12. **验证看门狗必须用 SYSTEM 计划任务触发，不能在当前 Medium 身份下直接跑**（本次撞了两次）。看门狗要写 `HKLM`，Medium 完整性（`S-1-16-8192`）会被拒；此时 `drift.log` 会记 `DRIFT` 但 `restored:` 为空，看起来像"修不回来"的 bug，实际是权限。
+    正确触发方式：`Start-Process schtasks.exe -ArgumentList '/run','/tn','DSH-PowerButtonLock' -Verb RunAs`，然后看 `watch.log` 是否出现 `OK 11keys ok`。

@@ -1,0 +1,43 @@
+    add("附注：本报告由只读扫描自动生成（_cw_build_report.py），嵌入内容均为磁盘原文；行号以扫描时文件状态为准。验收证据 README 全文与 .local/.claude/工作区 内容未收录（预算/隐私纪律）；Qt SDK（开发环境/）内未发现 README。")
+    return "\n".join(S)
+
+LEVELS = [
+    dict(attach=45, design=20, apptsx=45, servermjs=30, maincpp=40, uiqt=50, gitignore="full", codestruct=True, evidence="list", compiler=40, export=40,
+         webreadme=None, nativecmake=None, vite="full", tsconfignode=True, gradleprops=True, a2table=True, indexend=64, mdend=125, catn=2, gimax=22,
+         certreadme=None, settingsgradle=True, mainactivity=None),
+    dict(attach=30, design=12, apptsx=30, servermjs=22, maincpp=30, uiqt=40, gitignore="excerpt", codestruct=False, evidence="list", compiler=32, export=32,
+         webreadme=None, nativecmake=None, vite="full", tsconfignode=True, gradleprops=True, a2table=True, indexend=64, mdend=125, catn=2, gimax=22,
+         certreadme=None, settingsgradle=True, mainactivity=None),
+    dict(attach=25, design=10, apptsx=25, servermjs=18, maincpp=25, uiqt=35, gitignore="excerpt", codestruct=False, evidence="count", compiler=28, export=28,
+         webreadme=None, nativecmake=None, vite="full", tsconfignode=True, gradleprops=True, a2table=True, indexend=64, mdend=125, catn=2, gimax=22,
+         certreadme=None, settingsgradle=True, mainactivity=None),
+    dict(attach=12, design=6, apptsx=8, servermjs=10, maincpp=12, uiqt=12, gitignore="excerpt", codestruct=False, evidence="count", compiler=16, export=16,
+         webreadme=28, nativecmake=26, vite="excerpt", tsconfignode=False, gradleprops=False, a2table=False, indexend=55, mdend=112, catn=1, gimax=8,
+         certreadme=10, settingsgradle=False, mainactivity=25),
+]
+
+final, used = None, None
+for i, L in enumerate(LEVELS):
+    text = build(L)
+    n = len(text.encode("utf-8"))
+    print("level %d -> %d bytes" % (i, n))
+    if n <= BUDGET:
+        final, used = text, i
+        break
+if final is None:
+    final, used = text, len(LEVELS) - 1
+    print("WARNING: still over budget at last level")
+
+with open(OUT, "w", encoding="utf-8", newline="\n") as fh:
+    fh.write(final)
+
+print("written:", OUT)
+print("bytes:", len(final.encode("utf-8")), "level:", used)
+for chunk in final.split("\n## "):
+    title = chunk.split("\n", 1)[0][:40]
+    print("  section %-42s %d bytes" % (title, len(chunk.encode("utf-8"))))
+print("TREE bytes:", len(TREE.encode("utf-8")))
+print("total files (excl):", total_files, "top:", top_counts, "privacy:", privacy_counts)
+print("readmes: all=%d evidence=%d sdk=%d flagged=%s" % (len(all_readmes), len(evidence_readmes), len(sdk_readmes), flagged))
+print("catalog lessons:", len(catalog_lines), "decoded first:", cat_decoded)
+print("EV:", EV)

@@ -1,0 +1,64 @@
+   完整 body + 一行 `{规模/是否合并/上游状态/正文空不空}`，就能逐字段裁剪复现。
+   ⚠️ 日志要写到项目目录，不要只放 `%TEMP%`——本机 TEMP 是易失层，一次系统更新重启就清空。
+2. **TOML 顶层键必须写在第一个 `[table]` 之前。** 用脚本往 config 末尾**追加**
+   `model = ...` / `model_provider = ...`，它们会落进上一个表里而完全失效——
+   表现是「改了没反应」，本机因此白测了三轮。改完看客户端自报的抬头（Codex 打 `provider: <名字>`）。
+3. **判「有没有走某条协议」用最小差异对照**，别用整体成功/失败判断。
+   例：加一个 `tools` 字段，看输出里有没有 `function_call`；改一个 flush，看首块时间。
+
+## 最终可用配置（六道关全过）
+
+```toml
+model = "bonsai-main"
+model_provider = "localgw"
+model_reasoning_effort = "low"
+
+[model_providers.localgw]
+name = "localgw"
+base_url = "http://127.0.0.1:8081/v1"   # 自己起的转发器，不是宿主网关
+env_key = "LOCAL_GW_KEY"                 # 独立变量名，别用 OPENAI_API_KEY
+wire_api = "responses"
+```
+
+转发器需具备：自动发现上游随机端口、SSE 逐块 flush、developer/system 合并、小预算抬高。
+
+## 验证记录
+
+- [x] 协议：`/v1/responses` 在 llama-server 直连可用（text / reasoning / function_call / SSE 事件齐全）
+- [x] 吞 tools：网关 vs 直连同 payload 对照，已复现并记录（见 ②）
+- [x] flush：修前首块 6.50s vs 修后 0.29s，最后一秒到达行数 78→真增量
+- [x] auth：`requires_openai_auth=true` 复现 401 外流；改独立 `env_key` 后复现缺失变量并修复
+- [x] 500：三种裁剪结果如实记录，采用合并方案后 `status: 200`
+- [x] 端到端：`codex exec` 返回 `exit=0`、正文正常、94 tokens
+- [x] 回放：Codex 原样请求（13 tools / 57K 输入 / 流式）经代理 → 首块 ~30s、正文正常
+- [ ] 未覆盖：长会话多轮工具调用的稳定性（只验到单轮 + 一次工具返回）
+- [ ] 现状：**该路线已由用户决定放弃并全部回滚**，本条留作再次尝试时的清单
+
+## 可复用规则
+
+接任何「只支持 Responses API 的新客户端」到本地/自建 OpenAI 兼容后端时，
+**先单独验三件事**：① 上游是否实现 `/v1/responses`；② 它是否保留 `tools`；
+③ 目标模型的 chat template 对 system 消息位置/数量有什么硬约束。
+三者任一不满足，都需要一层会改请求体的转发器，而不是去调客户端参数。
+
+## 适用范围与不适用范围
+
+- 适用：Codex CLI 及一切 Responses 协议客户端接 llama.cpp / Ollama / 各家本地网关；
+  任何自己写 HTTP/SSE 转发器的场景
+- 不适用：纯 Chat Completions 客户端（Continue、Cline 等）—— 那条路上没有 ①④⑥；
+  官方 OpenAI 上游本身（④⑤ 反而是必须的）
+
+## 剩余风险
+
+- llama.cpp 的 Responses 实现仍在演进，②⑥ 的行为可能随版本变化；每次升级后需重跑 ①②③ 三查。
+- 本地模型带思考时，抬高输出预算会把首字延迟拉长（本机 Codex 单请求首块约 30s），
+  客户端超时设得短会误判成失败。
+
+## 关联
+
+- 相关记录：[[规则-CCSwitch接OpenAI兼容网关要四件套配置]]、
+  [[踩坑-API密钥报无效实为请求形态不对-OpenAI兼容网关]]、
+  [[踩坑-CCSwitch多供应商共用同一把密钥致换key无效]]、
+  [[踩坑-笔记本功耗封顶让同一配置吞吐差十倍-tok每秒不能当基线]]
+- 相关分类：[[03-通用/03-调试与验证/README|调试与验证]]
+- 相关文档：`D:\Models\Ternary-Bonsai-2-27B-gguf\部署交接说明.txt` 第十一节（本项目全过程留档）

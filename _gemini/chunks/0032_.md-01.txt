@@ -1,0 +1,50 @@
+# 通用索引
+
+这里收录不属于单一前端或后端，或会同时影响多个层面的 AI 工程经验。
+
+## 分类
+
+- [[03-通用/01-需求理解与任务拆解/README|需求理解与任务拆解]]
+- [[03-通用/02-AI协作与提示词/README|AI 协作与提示词]]
+- [[03-通用/03-调试与验证/README|调试与验证]]
+- [[03-通用/04-工程规范与安全/README|工程规范与安全]]
+- [[03-通用/99-待整理/README|待整理]]
+
+## 记录清单
+
+- [[03-通用/03-调试与验证/踩坑-跨盘全量哈希比对被MAX_PATH截断误报内容不同|跨盘全量哈希比对被 MAX_PATH 截断误报内容不同：读失败≠内容不同]] `verified`
+- [[03-通用/03-调试与验证/踩坑-电源按钮反复变回睡眠且从不真休眠-S0现代待机未转休眠与组策略硬锁|电源按钮总变回睡眠且从不真休眠：组策略硬锁 + 关 S0 现代待机]] `verified`
+- [[03-通用/04-工程规范与安全/规则-清理归档前先反查三类引用|清理/归档前先反查三类引用：看着像垃圾的 .bak 可能是回滚退路]] `verified`
+- [[03-通用/03-调试与验证/规则-代理软件关闭前必须先关系统代理|代理软件被关掉前必须先关系统代理，否则下次开机全机断网]] `verified`
+- [[03-通用/03-调试与验证/踩坑-收敛循环拒绝检测只判一个维度会无限重试|收敛循环的"拒绝检测"只判一个维度，会让另一个维度无限重试]] `verified`
+- [[03-通用/02-AI协作与提示词/规则-WorkBuddy技能发现机制与本地技能安装位置|本机技能发现机制：本地技能放哪、何时被识别、如何实现"默认调用"]] `verified`
+- [[03-通用/03-调试与验证/踩坑-openpyxl写的xlsx在Excel里行高被裁字|openpyxl 写的 xlsx 在 Excel 里行高被裁字]] `verified`
+- [[03-通用/03-调试与验证/踩坑-第三方Claude客户端自带服务商配置切全局路由无效|第三方 Claude 客户端自带服务商配置，切全局路由无效]] `verified`
+- [[03-通用/02-AI协作与提示词/规则-技能库已收录逆向技能只放指针|技能库已收录两条逆向技能（只放指针）]] `verified`
+- [[03-通用/02-AI协作与提示词/规则-逆向工具箱清单与后端选型决策表-MCP|逆向工具箱清单与后端选型决策表]] `verified`
+- [[03-通用/03-调试与验证/踩坑-虚拟网卡空metric抢走默认路由致域名假超时|虚拟网卡空 metric 抢走默认路由致域名假超时]] `verified`
+- [[03-通用/03-调试与验证/踩坑-中文注册表值触发PS兜底且param不绑定致插件查不完|中文注册表值触发 PS 兜底且 param 不绑定，致插件"查不完"]] `verified`
+- [[03-通用/03-调试与验证/规则-Windows新窗口默认居中只能常驻监视器|Windows 新窗口默认居中只能常驻监视器]] `verified`
+- [[03-通用/03-调试与验证/踩坑-Bash内联传参吞PowerShell变量与反斜杠|Bash 内联传参吞 PowerShell 变量与反斜杠]] `verified`（2026-11-15 追加：压掉的反斜杠会被 Python 按八进制转义二次消费 → **静默写出不可见控制字符/断行**，肉眼与 Read 皆正常，须 `repr()` 或码点正则验；修复字符串同样会被吃）
+- [[03-通用/04-工程规范与安全/踩坑-PowerShell5.1读无BOM的UTF8脚本中文变乱码|PowerShell 5.1 读无 BOM 的 UTF-8 脚本中文变乱码]] `verified`
+- [[03-通用/04-工程规范与安全/踩坑-cmd入口脚本判管理员与choice默认键取值|cmd 入口脚本判管理员与 choice 默认键取值]] `verified`
+- [[03-通用/03-调试与验证/踩坑-AI面板连接失败耗时1ms是没填密钥而非网络|AI 面板连接失败耗时 1ms 是没填密钥而非网络]] `verified`
+- [[03-通用/04-工程规范与安全/踩坑-GetContent默认按代码页解码致UTF8中文回显乱码|Get-Content 默认按代码页解码，致 UTF-8 中文回显乱码]] `verified`
+- [[03-通用/03-调试与验证/规则-默认路由抢占网卡已换为RadminVPN|默认路由抢占网卡已换为 Radmin VPN（接力记录）]] `verified`（2026-11-13 复核：实测出口=WLAN，原「Radmin 抢路」判定降级为未证实，见记录内补充节）
+- [[03-通用/04-工程规范与安全/规则-AtomGit与GitHub差异与国内推送判据|AtomGit 与 GitHub 的差异与国内推送判据]] `verified`
+- [[03-通用/03-调试与验证/踩坑-GitCode合并AtomGit后repos接口要private-token头且直连超时走7890|GitCode 合并 AtomGit 后扫仓库：private-token 头 + 活口代理，网页 SPA 抓不到]] `verified`
+- [[03-通用/03-调试与验证/规则-两端仓库对齐写操作GitCode增删改UTF8字节body与gh改公开删仓scope|两端仓库对齐写操作：GitCode 增删改 UTF-8 字节 body，gh 改公开要 consequences 旗标、删仓要 delete_repo]] `verified`
+- [[03-通用/03-调试与验证/规则-公开仓历史PII清洗用filter-repo镜像克隆法|公开仓历史 PII 清洗：filter-repo 镜像克隆法，不伤工作仓 WIP]] `verified`
+- [[03-通用/02-AI协作与提示词/规则-本地手册接入DSH成为默认前置与写Markdown的编码坑|手册接入 DSH 的「默认前置」落点与写 Markdown 的编码坑]] `verified`
+- [[03-通用/03-调试与验证/踩坑-同一函数既当不放大守卫又当按框缩放致该缩的不缩|同一函数既当"不放大守卫"又当"按框缩放"，致该缩的窗口白不缩]] `verified`
+- [[03-通用/03-调试与验证/踩坑-缩放结果二次取整不收敛致反复SetWindowPos|等比缩放结果二次取整不收敛，致轮询反复 SetWindowPos]] `verified`
+- [[03-通用/04-工程规范与安全/规则-规则类改动先写死判定式并核对注释与代码一致|规则类改动先写死判定式，并核对注释与代码一致]] `verified`
+
+- [[03-通用/03-调试与验证/踩坑-执行环境Start-Process子进程在工具会话结束时被连带回收|程序「启动时活着、跨会话消失、日志无崩溃」＝作业对象连带回收，不是程序 bug]] `verified`
+- [[03-通用/03-调试与验证/规则-Electron的app.asar可直接按头解析取文件无需asarCLI|Electron 的 app.asar 可直接按头解析取文件，无需 asar CLI]] `verified`
+- [[03-通用/03-调试与验证/踩坑-API密钥报无效实为请求形态不对-OpenAI兼容网关|API 密钥报「无效」先看状态码：401 才是密钥问题，400 是请求形态问题]] `verified`
+- [[03-通用/03-调试与验证/规则-自建provider开推理档位要同时写reasoningEfforts与supportsReasoningEffort|自建 provider 开推理档位：reasoningEfforts 与 supportsReasoningEffort 缺一不可]] `verified`
+- [[03-通用/03-调试与验证/规则-CCSwitch接OpenAI兼容网关要四件套配置|CC Switch 接 OpenAI 兼容网关：apiFormat / isFullUrl / in_failover_queue / supportsThinking 四件套]] `verified`
+- [[03-通用/03-调试与验证/踩坑-Python调tasklist加text等于True会UnicodeDecodeError|Python 调 tasklist 加 text=True 会 UnicodeDecodeError（中文控制台 GBK）]] `verified`
+- [[03-通用/03-调试与验证/踩坑-脚本驱动MSVC时vcvars传参与qt-cmake不透传build|脚本驱动 MSVC：vcvars 传参形式与 qt-cmake 不透传 --build]] `verified`
+- [[03-通用/03-调试与验证/踩坑-Win11托盘图标在独立溢出窗口且取证须先设DPI-aware|Win11 托盘图标在独立溢出窗口，取证须先设 DPI-aware]] `verified`

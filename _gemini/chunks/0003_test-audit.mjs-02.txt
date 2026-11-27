@@ -1,0 +1,61 @@
+  check('拒绝时没有执行 recompose', kernel.recomposed.length === 0, `recomposed=${JSON.stringify(kernel.recomposed)}`)
+  check('拒绝时没有写会话日志', agent.session.__appended.length === 0, JSON.stringify(agent.session.__appended))
+}
+
+// ---- 用例 2：还原逻辑必须同时撤销原型与实例补丁 ----
+{
+  const kernel = new (makeKernelClass())()
+  kernel.boundary = { openTurnStartSeq: null, lastTurn: 1 }
+  const proto = Object.getPrototypeOf(kernel)
+  // 必须在 mount 之前取原始实现：mount 之后原型已被补丁覆盖。
+  const originalProtoSelect = proto.select
+  const originalProtoDesc = Object.getOwnPropertyDescriptor(proto, 'select')
+  const { effects } = mount(kernel)
+
+  check('注册了清理函数', effects.length === 1, `effects=${effects.length}`)
+  check('补丁已生效（原型 select 被替换）', proto.select !== originalProtoSelect, 'patched')
+  check('原型上的 select 已被替换为插件方法', proto.select.name === 'selectUnlocked', proto.select.name)
+
+  // ctx.effect 的约定：工厂返回 dispose 函数，必须调用它才真正还原。
+  const dispose = effects[0]()
+  check('清理工厂返回 dispose 函数', typeof dispose === 'function', typeof dispose)
+  dispose()
+
+  // 严格断言：按身份比较，不是「是个函数」。
+  check(
+    '原型 select 已恢复为原始实现',
+    proto.select === originalProtoSelect,
+    proto.select === originalProtoSelect ? 'identity match' : `identity MISMATCH (name=${proto.select.name})`,
+  )
+  check('原型 select 不再是插件方法', proto.select.name !== 'selectUnlocked', proto.select.name)
+
+  // 实例自有属性应被删除，从而回落到原型。
+  const ownDesc = Object.getOwnPropertyDescriptor(kernel, 'select')
+  check('实例自有 select 已被删除', ownDesc === undefined, String(ownDesc))
+
+  // 还原后行为应与内核一致：会话已开始 → 抛 locked。
+  const agent = makeAgent()
+  const outcome = await withDeadline(kernel.select(agent, 'preset-x'), 3000)
+  check(
+    '还原后内核恢复原有锁定行为',
+    outcome.kind === 'err' && outcome.error?.code === 'agent-preset/locked',
+    outcome.kind === 'err' ? String(outcome.error?.code) : outcome.kind,
+  )
+  check('还原后不再执行 recompose', kernel.recomposed.length === 0, JSON.stringify(kernel.recomposed))
+}
+
+// ---- 用例 3：正常路径仍然可用（确认修复没有把功能弄坏） ----
+{
+  const kernel = new (makeKernelClass())()
+  kernel.boundary = { openTurnStartSeq: null, lastTurn: 3 }
+  mount(kernel)
+  const agent = makeAgent()
+  const outcome = await withDeadline(kernel.select(agent, 'preset-solo'), 5000)
+  check('正常路径仍能切换', outcome.kind === 'ok' && outcome.value === 'preset-solo', `kind=${outcome.kind} value=${outcome.value}`)
+  check('正常路径执行了 recompose', kernel.recomposed.length === 1, JSON.stringify(kernel.recomposed))
+}
+
+const failed = results.filter((r) => !r.ok).length
+console.log('\n' + '='.repeat(52))
+console.log(`结果：${results.length - failed} 通过，${failed} 失败`)
+process.exit(failed === 0 ? 0 : 1)

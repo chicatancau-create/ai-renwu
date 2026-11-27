@@ -1,0 +1,102 @@
+# -*- coding: utf-8 -*-
+"""只读扫描 E:\\OBsidian\\全栈工程师学习资料库, 收集快照报告所需全部数据。
+绝不写入仓库; 仅读取。stdout 输出紧凑审阅 dump; collect() 供 _lib_report.py 复用。
+"""
+import os, sys, re, json, subprocess, datetime, collections, fnmatch, stat
+
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
+ROOT = r"E:\OBsidian\全栈工程师学习资料库"
+EXCLUDE_DIRS = {".git", ".obsidian", "node_modules", "__pycache__"}
+CODE_EXTS = {".js",".mjs",".cjs",".ts",".tsx",".jsx",".py",".vue",".java",".go",".rs",
+             ".rb",".php",".c",".h",".cpp",".hpp",".cs",".sh",".bat",".cmd",".ps1",
+             ".sql",".html",".css",".scss",".less",".swift",".kt",".lua",".r",".pl",".svelte",".astro"}
+ATTACH_EXTS = {".png",".jpg",".jpeg",".gif",".webp",".svg",".bmp",".ico",".pdf",".zip",
+               ".rar",".7z",".tar",".gz",".mp4",".mp3",".wav",".mov",".doc",".docx",
+               ".xls",".xlsx",".ppt",".pptx",".ttf",".woff",".woff2",".eot",".otf"}
+FOCUS_DIRS = ["01-阶段课程","02-项目实战","06-实验代码","07-项目实现","08-判定题库"]
+GEMINI_FIELDS = ["id","domain","stack","type","difficulty","sandbox_path","related_ids"]
+
+SECRET_PATTERNS = [
+    (re.compile(r"://[^/\s:@]+:[^/\s@]+@"), "://***@"),                      # URL 内嵌凭据
+    (re.compile(r"\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9]{20,}\b"), "***"),
+    (re.compile(r"\bgithub_pat_[A-Za-z0-9_]{20,}\b"), "***"),
+    (re.compile(r"\bsk-[A-Za-z0-9_\-]{20,}\b"), "***"),
+    (re.compile(r"\bAKIA[0-9A-Z]{16}\b"), "***"),
+    (re.compile(r"\bxox[baprs]-[A-Za-z0-9\-]{10,}\b"), "***"),
+    (re.compile(r"\bglpat-[A-Za-z0-9_\-]{15,}\b"), "***"),
+    (re.compile(r"(?i)\b(?:api[_-]?key|token|secret|password)\s*[:=]\s*['\"]?[A-Za-z0-9_\-]{16,}"), None),  # 仅标记
+]
+EMAIL_RE = re.compile(r"\b[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}\b")
+CN_PHONE_RE = re.compile(r"(?<!\d)1[3-9]\d{9}(?!\d)")
+
+def mask(text):
+    """脱敏: URL凭据/常见token/邮箱/手机号 → ***; 返回(脱敏后文本, 标记列表)。"""
+    flags = []
+    if text is None:
+        return None, flags
+    for pat, repl in SECRET_PATTERNS:
+        for m in pat.finditer(text):
+            flags.append(("secret-like", m.group(0)[:12] + "..."))
+            if repl is not None:
+                text = pat.sub(repl, text)
+    for m in EMAIL_RE.finditer(text):
+        flags.append(("email", m.group(0)))
+    text = EMAIL_RE.sub("***@***", text)
+    for m in CN_PHONE_RE.finditer(text):
+        flags.append(("cn-phone", m.group(0)[:3] + "****"))
+    text = CN_PHONE_RE.sub("***", text)
+    return text, flags
+
+def read_text(path, limit_bytes=None):
+    try:
+        with open(path, "r", encoding="utf-8-sig", errors="replace") as f:
+            return f.read(limit_bytes) if limit_bytes else f.read()
+    except OSError as e:
+        return None
+
+def head_lines(text, n, cap=300):
+    if text is None:
+        return None
+    lines = text.splitlines()[:n]
+    return "\n".join(l[:cap] for l in lines)
+
+def probe_dir(p):
+    """区分 不存在 / 存在 / 无权限 (手册教训: 不能把拒绝读成不存在)。"""
+    try:
+        st = os.stat(p)
+        if stat.S_ISDIR(st.st_mode):
+            return "存在(目录)"
+        return "存在(非目录)"
+    except FileNotFoundError:
+        return "不存在"
+    except PermissionError:
+        return "未确认(权限拒绝,无法判断)"
+    except OSError as e:
+        return "未确认(%s)" % e
+
+def fm_parse(text):
+    """返回 (frontmatter原文 or None, 顶层字段列表)。"""
+    if not text:
+        return None, []
+    lines = text.splitlines()
+    if not lines or lines[0].strip() != "---":
+        return None, []
+    for i in range(1, min(len(lines), 200)):
+        if lines[i].strip() in ("---", "..."):
+            block = lines[1:i]
+            keys = []
+            for l in block:
+                m = re.match(r"^([A-Za-z_][A-Za-z0-9_\-]*)\s*:", l)
+                if m:
+                    keys.append(m.group(1))
+            return "\n".join(block), keys
+    return None, []
+
+def collect():
+    D = {}
+    walk_errors = []
+    files = []  # (relpath, size, ext)
+    def onerror(e):
+        walk_errors.append((getattr(e, "filename", "?"), str(e)))
+    for dirpath, dirnames, filenames in os.walk(ROOT, onerror=onerror):

@@ -1,0 +1,79 @@
+    ("DSH 私有", r"C:\Users\Admin\.dsh\skills"),
+    ("cc-switch", r"C:\Users\Admin\.cc-switch\skills"),
+]
+for label, p in ROOTS:
+    if not os.path.exists(p):
+        rd.append("| %s | 不存在 | — |\n" % label)
+        continue
+    tag = reparse(p)
+    if tag:
+        try:
+            tgt = os.readlink(p).replace("\\\\?\\", "")
+        except OSError:
+            tgt = "?"
+        rd.append("| %s | 整目录 Junction | `%s` |\n" % (label, tgt))
+    else:
+        kids = [n for n in os.listdir(p) if os.path.isdir(os.path.join(p, n))]
+        rd.append("| %s | 真实目录，%d 个条目 | 逐项联接 |\n" % (label, len(kids)))
+rd.append("\n## 三、⚠️ 联接的毁灭点（已经踩三次）\n\n")
+rd.append("**联接给了唯一真源，也给了唯一毁灭点。**\n\n")
+rd.append("用资源管理器删除 / 批量搬迁工具「移动」任一 Agent 技能根里的联接时，"
+          "**Windows shell 会跟随联接，把 `D:\\Skills` 里的真源一起删掉**。\n\n")
+rd.append("已发生：2026-11-15 02:04:06、02:22:56、02:23:43 三次，"
+          "`headroom` 与 `skill-router` 全部文件被回收。\n\n")
+rd.append("**纪律**：\n\n")
+rd.append("- 停用技能 → 移到 `D:\\Skills-disabled`，**不要删 `D:\\Skills-active` 里的条目**。\n")
+rd.append("- 批量搬迁 Agent 数据目录前 → 先摘掉技能根里的联接，或先把本库复制到搬迁范围外。\n")
+rd.append("- 判据：**文件进了回收站 ⇒ 是 shell 删的，不是 Python `rmtree`**（后者不进回收站）。\n")
+rd.append("- 兜底：`skill_shield.py` 每 20 秒自愈一次，但**刚写还没镜像的内容仍会丢**；"
+          "真正的兜底是本仓库的 git 远端。\n\n")
+rd.append("## 四、技能清单（%d 个）\n\n" % len(skills))
+EXCLUDED = {"docx", "pdf", "pptx", "xlsx", "reverse-trace", "reverse-wechat-miniapp",
+            "webapp-building"}
+rd.append("标 LOCK 的**不进 git 远端备份**（许可禁止再分发），仍在本地可用；依据见 `BACKUP_SCOPE.md`。\n")
+groups = [
+    ("全栈开发流水线 fs-*（13 个，自建）", lambda s: s["dir"].startswith("fs-")),
+    ("前端 / 设计 / 演示", lambda s: s["dir"] in (
+        "webapp-building", "impeccable", "sickn33-frontend-slides", "landing-page-design",
+        "figma-designer", "darwin-skill", "fullstack-dev", "ios-application-dev")),
+    ("文档 / 表格 / 检索", lambda s: s["dir"] in (
+        "docx", "xlsx", "pptx", "pdf", "brave-web-search", "tavily-search", "github", "find-skills")),
+    ("本机运维 / 自建工具", lambda s: s["dir"] in (
+        "skill-router", "headroom", "local-ai-handbook", "windows-gui-control", "xd-authoring",
+        "vision-tool", "obsidian-vault-validation", "diagnose-windows-sandbox-acl",
+        "self-improving-agent", "skill-creator")),
+    ("需求 / 进度", lambda s: s["dir"] in (
+        "barry-liu-888-requirement-translator", "barnhardt-enterprises-inc-checkpoint")),
+    ("钉钉", lambda s: s["dir"] == "dws"),
+    ("逆向（仅授权目标）", lambda s: s["dir"].startswith("reverse-")),
+]
+seen = set()
+for title, pred in groups:
+    sel = [s for s in skills if pred(s) and s["dir"] not in seen]
+    if not sel:
+        continue
+    for s in sel:
+        seen.add(s["dir"])
+    rd.append("\n### %s\n\n| 目录 | 用途 |\n| --- | --- |\n" % title)
+    for s in sel:
+        d = s["desc"].replace("|", "/").replace("\n", " ")
+        mark = " 🔒" if s["dir"] in EXCLUDED else ""
+        rd.append("| `%s`%s | %s |\n" % (s["dir"], mark, d[:110]))
+rest = [s for s in skills if s["dir"] not in seen]
+if rest:
+    rd.append("\n### 其他\n\n| 目录 | 用途 |\n| --- | --- |\n")
+    for s in rest:
+        rd.append("| `%s` | %s |\n" % (s["dir"], s["desc"].replace("|", "/")[:110]))
+rd.append("\n## 五、第二个库：QoderToolkit\n\n")
+rd.append("`D:\\QoderToolkit` → `D:\\_整理\\04-AI工具包\\QoderToolkit`（总联接，"
+          "隔离「另一个 AI 还在搬 D:\\_整理」的风险）。10 个技能，其中 `ppt-master` 约 89 MB。\n\n")
+rd.append("**为什么必须有 `D:\\QoderToolkit` 这层总联接**：`qoder-toolkit\\SKILL.md` 正文硬编码了\n")
+rd.append("`D:\\QoderToolkit\\ppt-master\\SKILL.md`、`D:\\QoderToolkit\\web-taste\\SKILL.md`、\n")
+rd.append("`D:\\QoderToolkit\\web-kimi\\scripts\\template\\`、"
+          "`D:\\QoderToolkit\\ppt-master\\scripts\\attribution_guard.py` 四处路径。\n")
+rd.append("只改 `.qoder\\skills` 的联接不够。它单独一个 git 仓库备份。\n\n")
+rd.append("## 六、规则\n\n")
+rd.append("1. 新技能放 `D:\\Skills\\<name>\\SKILL.md`，目录名小写字母数字连字符，**与 frontmatter `name` 同名**"
+          "（已知例外见 `THIRD_PARTY.md`）。\n")
+rd.append("2. `description` 必须说清**什么时候用**（触发词），长度 ≤1024 字符。\n")
+rd.append("3. **运行时缓存 / 输出不得写入技能源目录**，用 `AI_SHARED_SKILLS_STATE_DIR`"

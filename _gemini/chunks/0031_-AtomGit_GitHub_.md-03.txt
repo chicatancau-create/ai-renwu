@@ -1,0 +1,29 @@
+- **提交归属已解决（2026-11-12 用户拍板）**：用户确认两个账号绑定的都是 `chicatancau@gmail.com`（m00131：「两个账号的邮箱都绑的是这个」）。GitCode 侧已实证：`GET api/v5/emails` 带 Bearer → 200 `[{"email":"chicatancau@gmail.com","state":"confirmed"}]`；GitHub 侧令牌缺 `user` scope，`GET user/emails` 回 404 查不了邮箱列表，绑定以用户陈述为准。已改 `git config --global user.email chicatancau@gmail.com`（回读确认；`E:\fullstack-code`、`G:\cc-hud`、`G:\CodeWeave` 均无 local 覆盖，全局生效）。**单邮箱即可同时满足两平台归属**——此前「单邮箱无法两全」的判断前提是两账号邮箱不同，用户澄清后不成立。历史提交（`zhoujinwei@noreply.gitcode.com`、CodeWeave 里还有 `zhoumo@users.noreply.local`）在 GitHub 上 `author.login` 均为空、不计贡献；只有新提交计入，改写历史默认不做。
+
+## 补充：2026-11-13 三仓库提交推送完成态与贡献归属验证
+
+- 三仓库全部「本地 HEAD = GitCode = GitHub」（ls-remote 逐一比对，工作区全干净）：
+  * `E:\fullstack-code`：5 个新提交（97241b0→4fff672→52894fa→3d040e1→9edcb3d），HEAD=`9edcb3dad85a927f6f5963d0194a05ea239e6998`。
+  * `G:\cc-hud`：1 个（9efba67），HEAD=`9efba674397af71ffba0ff8186ca0ea60d320c7d`。
+  * `G:\CodeWeave`：67 个（229a411→c83a326），HEAD=`c83a326deb15ac5de7a81739d99c2dc8bfaedc44`；GitHub 单次大包推送中途被重置（curl 56）→ 分块推送成功，见 [[03-通用/03-调试与验证/踩坑-GitHub大包推送被重置需分块推送]]。
+- 贡献归属验证命令（显式 GET，带 `-f` 会变 POST）：`gh api repos/<owner>/<repo>/commits?per_page=1 -X GET --jq '.[0].author.login'`（配 `HTTPS_PROXY=http://127.0.0.1:7890`）。实测 fullstack-code 与 CodeWeave 新提交 `author.login=chicatancau-create`、`commit.author.email=chicatancau@gmail.com` → 全局邮箱修改（2026-11-12）生效，新提交两平台都计贡献。
+- 旧提交不随推送改变：cc-hud 的 1 个与 CodeWeave 的 66 个旧提交创建于改邮箱前，`author.email` 仍是 `zhoujinwei@noreply.gitcode.com`、`author.login` 为空；不改写历史（双远端 force push 代价大于收益）。
+- 提交前审查两坑（全暂存区混入空文件、uploads 样例误判）见 [[03-通用/04-工程规范与安全/踩坑-提交前审查两坑-全暂存区混入空文件与课程样例误判]]。
+- 代理 7890（FlClash）已实测可用于 GitHub 大推送（分块）；GitCode 同一批大包可一次推。
+
+## 补充：2026-11-15 网页新建私有仓库并用 GitCode 凭据推送（`G:\cc-hud`）
+
+- 建仓（纯网页，不需要令牌）：工作台 → 新建 → 新建项目；「项目名称」填 `cc-hud` 后「项目路径」手动补同名；「所有者」自动带出 `zhoumoyukuai`；选「私有项目」→「创建项目」。得到 `https://atomgit.com/zhoumoyukuai/cc-hud`。
+- 双域名同后端再次实锤：建完立刻打开 `https://gitcode.com/zhoumoyukuai/cc-hud`，看到的是同一个空仓（同标题、同介绍），不需要在 GitCode 侧另建。
+- 推送凭据就用已有的那条：本机 `C:\Users\Admin\.gkeys\atomgit.txt` 里 `username=` / `token=` 为空（只有注释），即**没有现成 AtomGit PAT**；但 Windows 凭据管理器已有 `git:https://gitcode.com`（GCM）。因此 remote 故意用 GitCode 域名：
+  `git remote add atomgit https://gitcode.com/zhoumoyukuai/cc-hud.git` → `git push -u atomgit main` 一次成功，远端回 `remote: Start Git Hooks Checking [PASSED]`，无弹窗、无需新建令牌。
+- 判公开是否生效（零副作用）：`GIT_TERMINAL_PROMPT=0 git -c credential.helper= ls-remote https://atomgit.com/zhoumoyukuai/cc-hud.git` → rc=0 且读到 `refs/heads/main`。**不要用 `git push --dry-run` 探权限**（认证失败会删凭据，见既有记录）。
+- 改可见性：仓库页 →「项目设置」（`/setting`）→ 基础设置 →「项目可见性」单选「公开」→ 点该区块的「保存」。页面有两个「保存」（基础信息 / 项目设置），别点错；成功后提示「操作成功」，刷新回读单选仍是公开。
+- OpenAPI 形状（**仅查文档，未实调用建仓**）：base `https://web-api.atomgit.com`；建个人仓库 `POST /api/v5/user/repos?access_token=<PAT>`，body `{name, description, private, auto_init, default_branch}`；文档 `https://atomgit-api-doc.atomgit.com/`。该域 `/api/v1/user` 返回 404（与 GitCode 一样只有 v5）。
+- 浏览器自动化的具体坑见 [[03-通用/02-AI协作与提示词/经验-Qoder浏览器Agent的evaluate恒null与自绘单选要点label|Qoder 浏览器 Agent 实测要点]]。
+
+## 关联
+
+- 相关记录：[[03-通用/03-调试与验证/踩坑-虚拟网卡空metric抢走默认路由致域名假超时|虚拟网卡空 metric 抢走默认路由致域名假超时]]
+- 相关分类：[[03-通用/04-工程规范与安全/README|工程规范与安全]]
+- 相关代码、命令或文档：`E:\nodejs`（**本地目录已删除**，见正文补充节；历史 `git remote -v` 指向 `https://gitcode.com/zhoujinwei/nodejs.git`）

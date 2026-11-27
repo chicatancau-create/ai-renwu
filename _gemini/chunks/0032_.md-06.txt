@@ -1,0 +1,14 @@
+- [[03-通用/04-工程规范与安全/经验-AppData缓存迁D盘复用DSH-Guard核心按组包装|AppData 缓存迁 D 复用 DSH-Guard 核心按组包装：不装第二套 GUI 迁移工具（Viap 评估）；回流核查法（守护日志/uv 空壳/活 npm 前缀）；模拟器锁定目录走开机任务 EmulatorCacheMigrate；D 盘 AppData-Local|AppData-Roaming 是真源不是重复数据]] `verified`（2026-11-24）
+- [[03-通用/04-工程规范与安全/规则-用Viap清理前必检D盘联接效果与Viap更新|用 Viap 清理数据/内存前必检：①D 盘 54 联接效果还在不在（health_check.py/双守护，D:\DevCache* 是真源）②Viap 是否需更新（对比 GitHub latest + 本机包哈希）；幽灵清理只清失效联接]] `verified`（2026-11-24，用户规定）
+- [[03-通用/03-调试与验证/经验-LightC全模块UIA驱动清理与社交默认全选误删用户数据|LightC 全模块 UIA 驱动：Tauri 覆盖 WebView2 调试参数⇒改 UIA；各模块选择控件形态不同+确认弹窗同名反向找；社交默认全选含用户数据⇒-ExpectMin 守卫+dry-run；旧驱动同体积备份净释放 0；界面剩余空间是陈旧值]] `verified`（2026-11-24）
+- [[03-通用/04-工程规范与安全/经验-PowerToys功能配置速查与CLI-DSC自动化入口|PowerToys 功能配置速查：38 模块开关与热键、Settings CLI 在 WinUI3Apps、DSC/winget configure 入口、Junction 与提权红线]] `verified`（2026-11-24）
+- [[03-通用/03-调试与验证/踩坑-PixPin启动即崩0xC0000409因截图历史索引损坏改名即修复|PixPin 启动即崩 0xC0000409：截图历史索引 History\_ScreenshotRecord 损坏，改名 .off 即修复（截图本体保留）]] `verified`（2026-11-24）
+- [[03-通用/03-调试与验证/踩坑-CCSwitch环境变量冲突复发-headroom-manifest整批进注册表与横幅需重启才消|CC Switch「系统环境变量冲突」横幅复发：真因=headroom manifest 的 base_env 整批进 HKCU 注册表（27 个 HEADROOM_*），只删两条 TARGET_API_URL 无效；删后必须重启 CC Switch 横幅才消（读启动快照）；重启会重写客户端配置但 URL 仍指 8787；判本地端口死活只用 HTTP 探测，curl 载荷不能带 BOM]] `verified`（2026-11-24）
+- [[03-通用/03-调试与验证/踩坑-上游中转把并行工具调用粘进同一tool_use参数致整轮MALFORMED_RESPONSE|DSH 反复「本轮运行失败」：中转把同 step 的多个并行工具调用粘进一个 tool_use 参数（第二个 name 丢失）⇒ MALFORMED_RESPONSE 毁整轮；修法＝llm/stream waterfall 插件补 block-end 覆盖坏参数并改写终止原因为 tool-calls；含插件 config 第二参数、profile patch 不热生效、remove→install 顺序四坑]] `verified`（2026-11-24）
+- [[03-通用/03-调试与验证/经验-自建Everything兼容IPC服务顶替原版-四点补齐与伪装常驻|自建 Everything 兼容 IPC 服务顶替原版：四点补齐与伪装常驻]] `verified`（2026-11-25）
+- [[03-通用/03-调试与验证/经验-百万级文件索引服务的内存与体积优化-mmap零拷贝与砍掉无用SQL索引|390 万条目索引服务内存从 1.9GB 降到 210MB：`bytes(mmap)` 深拷贝改直接 `mmap.find` 零拷贝，偏移表 memoryview→`array('i')`；顺带确认 FTS5 与 name 索引在「SQL 只按 rid 取行」架构下无人查，去掉省 459MB、建库 158→84 秒。含静默坑：偏移忘加 base 会让所有查询返回 0 条且不报错]] `verified`（2026-11-25）
+- [[03-通用/04-工程规范与安全/经验-环境变量体检与整理-失效路径重复PATH与缺失SDK变量|环境变量体检与整理：失效路径 / 重复 PATH / 缺失 SDK 变量]] `verified`（2026-11-25）
+
+- [规则-清理git污染勿删白名单外真实未跟踪工作目录](04-工程规范与安全/规则-清理git污染勿删白名单外真实未跟踪工作目录.md)（2026-11-26，verified）
+- [[03-通用/04-工程规范与安全/踩坑-cmd入口自带chcp65001时机械转GBK反而制造乱码|`.cmd/.bat` 自带 `chcp 65001` 时按「GBK 无 BOM」铁律机械转码反而制造乱码：脚本自身的代码页声明优先于全局编码铁律，批量转码须加「多解码试读 + 查 chcp 声明」守卫]] `verified`（2026-11-26）
+- [[03-通用/04-工程规范与安全/规则-批量删除前先落全量快照且多会话破坏性操作要互斥|批量删除前先落全量 CSV 快照、多会话破坏性操作要互斥：2026-11-26 误删 8 个顶层对象（62.6MB/183 条目）且回收站·git·备份包·VSS 四条恢复路径全空；删前快照进 `02_证据日志` 不进 TEMP、robocopy `/XJ` 冻结、`.lock` 互斥、污染只按 diff additions 判]] `verified`（2026-11-26）

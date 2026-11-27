@@ -1,0 +1,93 @@
+    A("4. **同地性已部分实现**：06-实验代码 每个实验单元自包含 README+src/tests/scripts/evidence（同目录）；07-项目实现 已清空为纯索引，P02/P03/P04 真实源码在外部仓 `E:\\fullstack-code`（实测存在，内容未扫描）。")
+    A("5. **CI 名存实亡**：`.github/workflows` 有 12 个 workflow；README 宣称全部从未在 Actions 实跑，2026-11-08 起计费阻断（交接文档引 annotation 原文）。「全绿」仅指本机门禁，且本次未复跑。")
+    A("")
+
+    # ================= 1 仓库概览 =================
+    A("## 1. 仓库概览")
+    A("")
+    A("| 项 | 值 |")
+    A("| --- | --- |")
+    A("| 本地路径 | `%s` |" % ROOT)
+    A("| 当前分支 | `%s`（读 .git/HEAD） |" % D["branch"])
+    A("| 分支 HEAD | `%s`（读 .git/refs/heads/…） |" % (D["branch_sha"] or "未确认"))
+    A("| .obsidian | %s |" % ("存在" if D["obsidian_exists"] else "不存在（实测；.gitignore 仍保留其缓存忽略规则）"))
+    A("| 外部代码仓 `E:\\fullstack-code` | %s（仅存在性探测，内容未扫描——任务边界） |" % D["fullstack_code"])
+    A("| 遍历错误 | %d 个（os.walk onerror 收集；0 = 无权限拒绝，「不存在」结论可信） |" % len(D["walk_errors"]))
+    A("| .git 体积 | %s |" % S.fmt_size(D["git_size"]))
+    if ts:
+        A("| Git 跟踪文件 | %s 个（git ls-files -z），其中 md %s 个；按工作区现状合计 %s%s |" % (
+            format(ts["count"], ","), format(ts["md"], ","), S.fmt_size(ts["size"]),
+            "；%d 个跟踪文件在工作区缺失" % ts["missing"] if ts["missing"] else ""))
+    else:
+        A("| Git 跟踪文件 | 未确认（git ls-files 不可用） |")
+    A("")
+    A("远端（读 `.git/config`；已按规则脱敏，本次未发现内嵌凭据）：")
+    A("")
+    A("| remote | URL |")
+    A("| --- | --- |")
+    for name, url in D["git_remotes"]:
+        A("| %s | `%s` |" % (name, emb(url)))
+    if D["git_proxy"]:
+        A("")
+        for u, p in D["git_proxy"]:
+            A("另有按域代理配置：`http.%s.proxy = %s`（本机代理，非凭据）。" % (u, p))
+    A("")
+    A("最近 3 条提交（来源：%s）：" % D["commits_src"])
+    A("")
+    if D["commits"]:
+        A("| hash | 日期 | subject |")
+        A("| --- | --- | --- |")
+        for h, d, s in D["commits"]:
+            A("| `%s` | %s | %s |" % (h, d, emb(s)))
+    else:
+        A("未确认（git log 与 reflog 回退均不可用）。")
+    A("")
+    A("注意：交接文档警告「资料库工作区可能有其他会话（豆包/ASR）的未提交改动」（原文见附录 A）。本报告统计工作区现状；未做工作区 vs HEAD 差异比对（避免触发会写 .git/index 的 git 命令）。")
+    A("")
+
+    # ================= 2 目录树 =================
+    A("## 2. 目录树（深度 3，排除 .git/.obsidian/node_modules/__pycache__）")
+    A("")
+    A("一级/二级目录标注 `[md:n code:n]`（该目录递归累计）；一级目录另标体积。深度 3 仅列目录名。")
+    A("")
+    A("```")
+    A(ROOT + "\\")
+    tree_lines = []
+    def show(node, prefix, depth, relprefix):
+        items = sorted(node.items())
+        for i, (name, sub) in enumerate(items):
+            if i >= 40:
+                tree_lines.append(prefix + "… 另有 %d 个目录未展开" % (len(items) - 40))
+                break
+            rel = (relprefix + "/" + name) if relprefix else name
+            key = rel.replace("/", SEP)
+            ann = ""
+            if depth <= 2:
+                ann = "  [md:%d code:%d]" % (D["dir_md"].get(key, 0), D["dir_code"].get(key, 0))
+                if depth == 1:
+                    ann += " %s" % S.fmt_size(D["dir_size"].get(key, 0))
+            tree_lines.append(prefix + name + "/" + ann)
+            if depth < 3:
+                show(sub, prefix + "  ", depth + 1, rel)
+    show(D["tree"], "", 1, "")
+    L.extend(tree_lines)
+    A("```")
+    A("")
+    root_files = [(r, s) for r, s, _ in D["files"] if SEP not in r]
+    A("根目录文件：%s。" % "、".join("`%s`(%s)" % (r, S.fmt_size(s)) for r, s in sorted(root_files)))
+    A("")
+    A("要点：`05-外部资料库/题库`、`05-外部资料库/知识库` 为 .gitignore 排除的本地镜像（第 9 节）；`07-项目实现` 只有一个 README.md（纯索引）；`06-实验代码` 的 build/、dist/ 产物也被忽略（工作区可见但不入库）。")
+    A("")
+
+    # ================= 3 全库统计 =================
+    A("## 3. 全库统计")
+    A("")
+    A("| 指标 | 值 |")
+    A("| --- | --- |")
+    A("| 文件总数（工作区，排除目录后） | %s |" % format(D["total_files"], ","))
+    A("| 总大小（工作区） | %s（另 .git %s） |" % (S.fmt_size(D["total_size"]), S.fmt_size(D["git_size"])))
+    A("| .md 总数 | %s |" % format(md_total, ","))
+    A("| 代码文件数 | %s |" % format(D["code_count"], ","))
+    A("| 附件数（图片/文档/压缩包/字体等） | %s |" % format(D["attach_count"], ","))
+    A("| 自有内容（除 05 外） | md %d 篇、代码 %d 个 |" % (own_md, own_code))
+    A("")

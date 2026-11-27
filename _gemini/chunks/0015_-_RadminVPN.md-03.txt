@@ -1,0 +1,21 @@
+### 判据更正（本次复核的核心）
+
+原记录判「Radmin 抢走默认路由」只凭 `Get-NetRoute` 表序（metric=1 居首）+ `Get-NetIPInterface`，**没有用 `Find-NetRoute` 实证出口**，也没有复现任何故障（原验证记录自标「实际影响验证：未做」）。按有效 metric = `RouteMetric + InterfaceMetric`，原记录自己证据表里的数字（Radmin 9256+1=9257 vs 以太网 2 0+35=35）就不支持「Radmin 赢」。
+
+⇒ 原结论降级为**未证实（疑似表序误判）**；原文「决定胜负的是 InterfaceMetric，不是 RouteMetric」「前者通常是决定性的」**撤回**——2026-11-13 实测恰是 RouteMetric（9256）决定胜负的实例。两条后出记录与本复核一致：杀软断网修复（2026-10-31）与手动 DNS 冷解析（2026-11-06）都记「WLAN metric 35 出口 / Radmin 9257」。
+
+**模式警告仍然成立**：Meta Tunnel 案例（上一条记录）有 Find-NetRoute 实证 + 真实故障 + 改 metric 前后对照，「空/极低 metric 虚拟网卡可能抢路由」仍是真实模式；但**判出口必须用 Find-NetRoute（或消费者侧实证），不能凭路由表序或单看接口 metric**。
+
+### 其他过时项与剩余风险
+
+- 代理选型节同样过时：「Clash(7897) 是唯一出境口」为当时实测；本机代理现为 **FlClash**（`D:\FlClash\FlClashCore.exe`，监听 7890），7897 无监听，系统代理 `ProxyServer=127.0.0.1:7890`。WARP 两层串联判据（分别量「走代理」和「直连」）仍有效。
+- Radmin 接口 metric 原为 1（若重连并重建低 RouteMetric 默认路由可能再次抢路，推断未实测；现行路由层 9256 的缓解是谁设置的未知）。**2026-11-13 已提权修复**：会话内直接执行被「拒绝访问」后，经用户点击 UAC 提权执行 `Set-NetIPInterface -InterfaceIndex 8 -InterfaceMetric 5000` 成功（worker 内 fltmc=0 确认管理员）；改后 `Find-NetRoute 8.8.8.8` 复核出口仍 WLAN（192.168.226.18 / ifIndex=19），ActiveStore 与 PersistentStore 双存储回读均 5000（重启不弹回）。剩余风险收窄为：Radmin 客户端自身若重连时重写 metric，仍可能复发（未实测）。
+- WARP 为手动断开，用户若重新连接，分片前缀接管会回来（2026-10-15 节的判据仍适用）。
+
+## 关联
+
+- 相关记录：[[踩坑-虚拟网卡空metric抢走默认路由致域名假超时]]（**本条是它的接力/状态更新**，
+  模式相同、网卡已换；修复方法与判据链沿用该条）
+- 相关分类：[[03-通用/03-调试与验证/README|调试与验证]]
+- 相关代码、命令或文档：`Get-NetRoute -DestinationPrefix '0.0.0.0/0'`、
+  `Get-NetIPInterface -AddressFamily IPv4 | Sort-Object InterfaceMetric`

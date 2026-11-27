@@ -1,0 +1,87 @@
+    ("dsh", os.path.join(HOME, ".dsh", "skills")),
+    ("cc-switch", os.path.join(HOME, ".cc-switch", "skills")),
+]
+for label, root in ROOTS:
+    if not os.path.isdir(root):
+        rec("FAIL", "root %s" % label, root + " MISSING/unreadable")
+        continue
+    kids = [n for n in os.listdir(root) if os.path.isdir(os.path.join(root, n))]
+    have = [d for d in want if os.path.isfile(os.path.join(root, d, "SKILL.md"))]
+    rp = reparse(root)
+    kind = ("junction->" + target(root)) if rp else "realdir"
+    rec("PASS" if set(have) == want else "FAIL", "root %s has both" % label,
+        "%d dirs, both=%s, %s" % (len(kids), set(have) == want, kind[:70]))
+
+print()
+print("=" * 100)
+print("D. library integrity")
+print("=" * 100)
+libdirs = sorted(n for n in os.listdir(LIB)
+                 if os.path.isdir(os.path.join(LIB, n)) and not n.startswith("."))
+bad_fm, mismatch, nodesc = [], [], []
+KNOWN_EXC = {"reverse-trace": "spider-king", "reverse-wechat-miniapp": "wechat-miniapp-reverse",
+             "web-kimi": "webapp-building", "brave-web-search": "web-search",
+             "sickn33-frontend-slides": "frontend-slides",
+             "barry-liu-888-requirement-translator": "requirement-translator",
+             "barnhardt-enterprises-inc-checkpoint": "checkpoint"}
+for d in libdirs:
+    sm = os.path.join(LIB, d, "SKILL.md")
+    if not os.path.isfile(sm):
+        bad_fm.append(d + " (no SKILL.md)")
+        continue
+    n, ds = fm(sm)
+    if not n:
+        bad_fm.append(d + " (no name)")
+    if not ds:
+        nodesc.append(d)
+    if n and n != d and KNOWN_EXC.get(d) != n:
+        mismatch.append("%s -> %s" % (d, n))
+rec("PASS" if not bad_fm else "FAIL", "library %d skills, SKILL.md+name" % len(libdirs),
+    "all valid" if not bad_fm else str(bad_fm))
+rec("PASS" if not nodesc else "WARN", "every skill has description", "all" if not nodesc else str(nodesc))
+rec("PASS" if not mismatch else "WARN", "dir name == frontmatter name",
+    "all (known exceptions allowed)" if not mismatch else str(mismatch))
+rec("PASS" if os.path.isdir(DISABLED) else "FAIL", "Skills-disabled exists",
+    "%d parked" % len(os.listdir(DISABLED)) if os.path.isdir(DISABLED) else "MISSING")
+
+print()
+print("=" * 100)
+print("E. QoderToolkit junction + hardcoded paths inside its SKILL.md")
+print("=" * 100)
+rp = reparse(QTK)
+rec("PASS" if rp and os.path.isdir(QTK) else "FAIL", "D:\\QoderToolkit junction resolves",
+    "%s -> %s" % (bool(rp), target(QTK)))
+qsm = os.path.join(QTK, "qoder-toolkit", "SKILL.md")
+if os.path.isfile(qsm):
+    with open(qsm, encoding="utf-8", errors="replace") as f:
+        qt = f.read()
+    refs = sorted(set(re.findall(r"D:\\QoderToolkit[\\\w\-.]*", qt)))
+    missing = [r for r in refs if not os.path.exists(r)]
+    rec("PASS" if not missing else "FAIL", "qoder-toolkit hardcoded paths resolve",
+        "%d refs, missing=%s" % (len(refs), missing or "none"))
+else:
+    rec("FAIL", "qoder-toolkit SKILL.md", qsm + " MISSING")
+qdirs = sorted(n for n in os.listdir(QTK)
+               if os.path.isdir(os.path.join(QTK, n)) and not n.startswith(".")) if os.path.isdir(QTK) else []
+qbad = [d for d in qdirs if not os.path.isfile(os.path.join(QTK, d, "SKILL.md"))]
+rec("PASS" if not qbad else "FAIL", "QoderToolkit %d skills valid" % len(qdirs), str(qbad or "all"))
+
+print()
+print("=" * 100)
+print("F. router catalog + scripts")
+print("=" * 100)
+cat = os.path.join(ROUTER, "catalog.json")
+if os.path.isfile(cat):
+    with open(cat, encoding="utf-8") as f:
+        C = json.load(f)
+    entries = C.get("skills", C) if isinstance(C, dict) else C
+    n_cat = len(entries)
+    cat_mtime = os.path.getmtime(cat)
+    newest = max(os.path.getmtime(os.path.join(LIB, d)) for d in libdirs)
+    stale = newest > cat_mtime + 5
+    rec("WARN" if stale else "PASS", "catalog fresh vs library",
+        "%d entries; library newer by %.0fs" % (n_cat, newest - cat_mtime) if stale
+        else "%d entries, up to date" % n_cat)
+else:
+    rec("FAIL", "catalog.json", "MISSING")
+

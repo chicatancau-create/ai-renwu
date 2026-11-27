@@ -1,0 +1,54 @@
+---
+title: "AppData 缓存迁 D 盘：复用 DSH-Guard 核心按组包装，不引第二套 GUI 迁移工具"
+date: 2026-11-24
+domain: common
+category: "工程规范与安全"
+status: verified
+severity: medium
+stack: ["Windows 11", "NTFS Junction", "Python 3", "PowerShell 5.1"]
+tags: ["磁盘迁移", "Junction", "AppData", "DSH-Guard", "防回归", "Viap", "计划任务"]
+---
+
+# 问题：C 盘 AppData 越用越大，又怕别的 AI 把已迁数据重复写回 C
+
+## 一句话结论
+
+本机已有验证过的迁移引擎 `D:\DSH-Guard\migrate_dir.py`（逐文件 SHA256 校验、内嵌联接重建、探针验证、失败回滚）和防回归守护 `migrate_guard.py`，**扩到 AppData 只需写薄包装按组切换模块全局变量（HOME/DSTROOT/STATE/ALL/KEEP_ON_C），不要安装第二套 GUI 迁移工具**（本次评估的是 Viap v1.3.3，未安装）。
+
+## 触发条件与影响
+
+- 用户 2026-11-24 要求：检查「之前 AI 把数据从 C 挪到 D 后，是否有 AI 没识别 D 盘数据又把重复数据写回 C」，并把能挪的挪走；工具由 AI 自选（`H:\下载\Viap` 里的 Viap 或手动）。
+- 核查结论（先查再动手）：
+  - 受守护的 25 个 `C:\Users\Admin\.xxx` 目录**从未回流**（守护日志至 2026-11-24 10:23 反复「正常 25 / 修复 0 / 待处理 0」）。
+  - `AppData\Local\uv\cache` 是 **0 MB 空壳**——`UV_CACHE_DIR=D:\dev-cache\uv\cache` 生效，真缓存 2.76 GB 在 D，无重复。
+  - `C:\Users\Admin\.cache` 仅 3 MB（codex-runtimes/billion-context/opencode），无 huggingface 重复（`HF_HOME=D:\uv\data\huggingface`）。
+  - `AppData\Roaming\npm`（1.43 GB）是**活前缀**（claude/codex/nrm/pi/tokentracker 的 shim），不是陈旧残留；`D:\node-global` 是另一前缀。联接迁移后路径不变，npm 照常工作。
+  - 真正没迁的是 AppData 下一批应用数据/缓存（Doubao 3.75G、Postman 1.3G、pnpm store 1.4G、npm-cache 1.1G、Code 1.1G、JetBrains 1G 等）。
+
+## 为什么不用 Viap
+
+Viap（GitHub Chunyu33/viap）是 Junction 重定向 GUI 工具，功能对口，但：本机未安装；GUI 自动化（WebView2）操作风险高于脚本；它会建立**第二套平行迁移历史**，与既有 `migrated.json` + 守护互不相认，日后排查回流要查两套账。既有引擎已接进开机/登录守护，复用成本最低。Viap 文档里「禁迁 UWP/MSIX、Office、浏览器安装目录、GPU 驱动」等红线与本机做法一致，可作选型参考。
+
+## 做法（已验证）
+
+1. **执行器包装** `D:\DSH-Guard\migrate_appdata.py`：`python migrate_appdata.py local|roaming <目录名...>`。两组基目录：
+   - local：`C:\Users\Admin\AppData\Local` → `D:\DevCache\AppData-Local`，清单 `migrated_local.json`
+   - roaming：`C:\Users\Admin\AppData\Roaming` → `D:\DevCache\AppData-Roaming`，清单 `migrated_roaming.json`
+   清单键仍为 `migrated`，与核心 `load_state/save_state` 兼容。核心函数全读模块全局，包装里赋值即切换，**核心脚本零改动**。
+2. **守护包装** `D:\DSH-Guard\migrate_guard_appdata.py`：逐组设 `mg.HOME/DSTROOT/STATE`，`mg.ALL = mg.load_state()`（只守护登记者），`mg.KEEP_ON_C = {}`，调 `mg.main()` 取最大退出码。`--quiet/--popup` 透传。
+3. **接线**：`guard_on_logon.ps1` 与 `start_dsh.bat` 各加一行调用守护包装（bat 必须纯 ASCII；done 行新增 `appdata=%ARC%`）。
+4. **被占用的大目录走开机任务**：模拟器（emulator/qemu/adb）占用 `.android`(4.7G)/`AppData\Local\Android`(4.3G)/`Huawei`(6.6G)，CapCutService 占用 `CapCut`(2.7G)——运行中改名必失败。写 `migrate_emulators.py` 注册计划任务 `EmulatorCacheMigrate`（SYSTEM、AtStartup、2h 上限），开机用户程序未起时迁移，全部成功（或已是联接）后 `schtasks /Delete` 自删。
+5. **提权注册**：非提权 `Register-ScheduledTask` 报 `Access is denied (0x80070005)`；按 [[规则-本机管理员提权可静默完成不要推给用户]] 用 `Start-Process powershell.exe -Verb RunAs -WindowStyle Hidden -PassThru` 跑 ASCII worker ps1（结果自写日志），注册成功 State=Ready。
+
+## 实际验证结果
+
+- 自检 `D:\AI-Tool-State\disk-audit\selftest_appdata.py`（临时目录，不碰真实数据）：**12/12 PASS**——迁移退出码 0、联接指向正确、内嵌联接重建、清单登记、守护正常态 0、回流自动修复 1（新文件合并进 D）、C 被删重建联接。
+- 首批实迁 Doubao：23,117 文件 / 3.66 GB，SHA256 全过，抽样 2000 零异常，联接生效=True（2026-11-24 15:44）。
+- Temp 清理（24h 前旧文件）：删 3,848 个，释放 434.8 MB，跳过占用 19 个。
+- 批量结果与最终释放量见 `G:\AIrenwu\04_磁盘与系统\磁盘占用体检\本轮清理与迁移记录.md` 2026-11-24 节。
+
+## 踩到的四个小坑
+
+1. `readlink()` 返回带 `\\?\` 前缀的路径，比对联接目标前必须剥掉（守护源码已处理；自测脚本第一版没剥，假 FAIL 一项）。
+2. Python stdout 接管道时是块缓冲，`Tee-Object` 日志迟迟不出现——**进度以 `D:\DSH-Guard\migrate_dir.log` 为准**，不是 Tee 日志。
+3. `Get-Content` 读 UTF-8 日志要加 `-Encoding UTF8`，否则 PS 5.1 按代码页解码满屏乱码（见 [[踩坑-GetContent默认按代码页解码致UTF8中文回显乱码]]）。

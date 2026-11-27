@@ -1,0 +1,83 @@
+    bad = {k: (env.get(k), v) for k, v in need.items() if str(env.get(k)) != v}
+    rec("PASS" if not bad else "FAIL", "manifest key env (%d vars)" % len(env),
+        "all correct" if not bad else "MISMATCH %s" % bad)
+    tg = M.get("targets", None)
+    rec("PASS" if tg in ([], None) else "FAIL", "manifest targets must stay empty",
+        repr(tg) + " (non-empty = headroom would bypass cc-switch)")
+else:
+    rec("FAIL", "manifest exists", man + " MISSING")
+
+print()
+print("=" * 100)
+print("B. agent wiring")
+print("=" * 100)
+cs = os.path.join(HOME, ".claude", "settings.json")
+try:
+    with open(cs, encoding="utf-8") as f:
+        CJ = json.load(f)
+    bu = (CJ.get("env") or {}).get("ANTHROPIC_BASE_URL", "")
+    tok = (CJ.get("env") or {}).get("ANTHROPIC_AUTH_TOKEN", "")
+    # cc-switch may legitimately put Claude in direct mode on another provider.
+    # That is the user's choice, not a fault -- report it, never "fix" it.
+    mode = attached = None
+    try:
+        with open(os.path.join(HOME, ".cc-switch", "live-state.json"), encoding="utf-8") as f:
+            a = (json.load(f).get("apps") or {}).get("claude") or {}
+        mode, attached = a.get("mode"), bool(a.get("attached"))
+    except Exception:
+        pass
+    if "8787" in bu:
+        rec("PASS", "claude ANTHROPIC_BASE_URL", bu)
+    elif mode == "proxy" and attached:
+        rec("FAIL", "claude ANTHROPIC_BASE_URL", bu + " (cc-switch proxy mode -> should be 8787)")
+    else:
+        rec("INFO", "claude not via headroom (user chose direct)",
+            "%s  cc-switch mode=%s attached=%s" % (bu, mode, attached))
+    # never print a credential
+    shown = "PROXY_MANAGED" if tok == "PROXY_MANAGED" else (
+        "<real key, %d chars, redacted>" % len(tok) if tok else "<empty>")
+    rec("PASS" if tok == "PROXY_MANAGED" else "INFO",
+        "claude auth token", shown)
+except Exception as e:
+    rec("FAIL", "claude settings.json parse", "%s: %s" % (type(e).__name__, e))
+
+ct = os.path.join(HOME, ".codex", "config.toml")
+try:
+    with open(ct, encoding="utf-8") as f:
+        CTXT = f.read()
+    m = re.search(r'base_url\s*=\s*"([^"]+)"', CTXT)
+    bu2 = m.group(1) if m else "(none)"
+    rec("PASS" if "8787" in bu2 else "FAIL", "codex base_url", bu2)
+    mm = re.search(r'^model\s*=\s*"([^"]+)"', CTXT, re.M)
+    mw = re.search(r'wire_api\s*=\s*"([^"]+)"', CTXT)
+    rec("PASS", "codex model / wire_api", "%s / %s" % (mm.group(1) if mm else "?", mw.group(1) if mw else "?"))
+except Exception as e:
+    rec("FAIL", "codex config.toml read", "%s: %s" % (type(e).__name__, e))
+
+print()
+print("=" * 100)
+print("C. default window + skill roots")
+print("=" * 100)
+want = {"headroom", "skill-router"}
+if os.path.isdir(ACTIVE):
+    dirs = sorted(n for n in os.listdir(ACTIVE) if os.path.isdir(os.path.join(ACTIVE, n)))
+    files = sorted(n for n in os.listdir(ACTIVE) if not os.path.isdir(os.path.join(ACTIVE, n)))
+    good = set(dirs) == want and all(
+        os.path.isfile(os.path.join(ACTIVE, d, "SKILL.md")) for d in dirs)
+    rec("PASS" if good else "FAIL", "Skills-active == {headroom, skill-router}",
+        "%s readable=%s" % (dirs, [os.path.isfile(os.path.join(ACTIVE, d, "SKILL.md")) for d in dirs]))
+    rec("PASS", "Skills-active non-dir entries (app state, kept)", str(files) or "(none)")
+else:
+    rec("FAIL", "Skills-active exists", ACTIVE + " MISSING")
+
+ROOTS = [
+    ("claude", os.path.join(HOME, ".claude", "skills")),
+    ("agents(DSH)", os.path.join(HOME, ".agents", "skills")),
+    ("opencode", os.path.join(HOME, ".config", "opencode", "skills")),
+    ("workbuddy", os.path.join(HOME, ".workbuddy", "skills")),
+    ("workbuddy-ai", os.path.join(HOME, ".workbuddy-ai", "skills")),
+    ("openclaw", os.path.join(HOME, ".openclaw", "skills")),
+    ("codex", os.path.join(HOME, ".codex", "skills")),
+    ("qoder", os.path.join(HOME, ".qoder", "skills")),
+    ("qoder-cn", os.path.join(HOME, ".qoder-cn", "skills")),
+    ("herdsman", os.path.join(HOME, ".herdsman", "work", "skills")),

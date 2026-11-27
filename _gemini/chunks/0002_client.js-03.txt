@@ -1,0 +1,95 @@
+          document.addEventListener('click', onDocumentClick)
+          document.addEventListener('keydown', onKeyDown)
+          return () => {
+            document.removeEventListener('click', onDocumentClick)
+            document.removeEventListener('keydown', onKeyDown)
+          }
+        }, [open])
+
+        // 菜单项点击用「原生事件 + 捕获阶段」兜底。
+        //
+        // 菜单通过 createPortal 挂在 document.body 上，不在本组件的 DOM 子树里。
+        // 依赖 React 合成事件时，事件要从 portal 容器冒泡回 React 根容器才被派发，
+        // 这条路径一旦不成立，onClick 就永远不执行——表现正是「菜单能打开、点了没反应」。
+        // 这里直接在 document 捕获阶段用原生监听器接管：只要点到带 data-preset-id
+        // 的元素就立刻执行切换，不依赖任何 React 事件传播。
+        React.useEffect(() => {
+          if (!open) return undefined
+          const onNativeClick = (event) => {
+            const target = event.target
+            if (!(target instanceof Element)) return
+            const item = target.closest('[data-preset-id]')
+            if (item === null) return
+            const id = item.getAttribute('data-preset-id')
+            if (id === null || id === '') return
+            // 抢占：不让 document 冒泡阶段的「点外部关闭」先跑，避免菜单先卸载。
+            event.preventDefault()
+            event.stopPropagation()
+            void pick(id)
+          }
+          document.addEventListener('click', onNativeClick, true)
+          return () => document.removeEventListener('click', onNativeClick, true)
+        }, [open, busy, current, sessionId])
+
+        if (current === undefined) return null
+
+        // 不可用的预设不提供选择，避免把「加载失败」的发现推迟到建会话时。
+        const options = presets.filter((entry) => entry.broken === undefined)
+        const chosen = presets.find((entry) => entry.id === current)
+        // v9 标记：肉眼可见，用来确认新代码是否真的被加载。
+        // busy 时显示进度，让等待期有可见反馈。
+        const label = busy
+          ? '切换中…'
+          : (chosen === undefined ? current : displayText(chosen).name) + ' ·v11'
+
+        const pick = async (id) => {
+          setOpen(false)
+          // 用 ref 做同步锁，而不是只看 busy 这个 state。
+          // setBusy(true) 要等下一次渲染才生效，两次点击若发生在同一帧内，
+          // 两次都会读到 busy=false 并各自发出一次请求——宿主端会串行执行，
+          // 表现为「点一次却切了两次」，且第二次可能把预设切回去。
+          if (busyRef.current) return
+          if (id === current) return
+          busyRef.current = true
+          setBusy(true)
+          // 宿主在会话有轮次运行时不会硬切，而是等轮次结束后再切（最长约 3 分钟）。
+          // 这段等待期必须给用户可见的反馈，否则就是「点了没反应」。
+          setRefusal('正在切换…若会话正在运行任务，会自动等它结束后切换')
+          try {
+            // 客户端超时只做「宿主彻底失联」的兜底，必须**晚于**宿主自己的兜底超时。
+            // 宿主预算是：等待轮次 ≤180s + 内核动作，整次调用封顶 200s。
+            // 这里取 215s，留 15s 余量让宿主先给出明确错误（失败原因比「未确认」有用得多）。
+            // 若反过来（客户端先超时），界面会报失败而宿主随后真的切成功——状态就骗人了。
+            const CLIENT_TIMEOUT_MS = 215000
+            let timer
+            const timeout = new Promise((_, reject) => {
+              timer = setTimeout(() => {
+                const error = new Error('宿主长时间无响应，本次切换未确认；请再试一次')
+                error.code = 'agent-preset/client-timeout'
+                reject(error)
+              }, CLIENT_TIMEOUT_MS)
+            })
+            let result
+            try {
+              result = await Promise.race([remote.agentPresets.select(sessionId, id), timeout])
+            } finally {
+              clearTimeout(timer)
+            }
+            // 兼容两种形状：{ok:true,value} 包装，或直接返回 preset id 字符串。
+            const failed = result !== null && typeof result === 'object' && result.ok === false
+            if (failed) {
+              const details = result.error?.details
+              setRefusal(
+                '切换失败：' +
+                  (details !== null && typeof details === 'object' && typeof details.reason === 'string'
+                    ? details.reason
+                    : (result.error?.message ?? result.error?.code ?? '未知原因')) +
+                  '（点击关闭）',
+              )
+            } else {
+              setRefusal(null)
+            }
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error)
+            setRefusal('切换失败：' + message + '（点击关闭）')
+          } finally {

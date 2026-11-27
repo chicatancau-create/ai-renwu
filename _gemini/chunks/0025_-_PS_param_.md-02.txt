@@ -1,0 +1,74 @@
+WorkBuddy 于 2026-10-15 10:04 升级后，国内版从 `D:\WorkBuddyAIguonei\` 搬进了 `D:\WorkBuddyAIgouji\WorkBuddy.exe`
+（旧目录只剩 `debug.log` + `version` 两个残留文件，0 个 exe），于是本条当初设的 `WORKBUDDY_ELECTRON_BIN`
+变成死路径，报 `the configured WorkBuddy Electron binary is not available at …`。
+
+**定位与修复（照做可复现）**：
+① 权威落点看**卸载注册表的 `DisplayIcon`**，不看目录名猜：
+`HKCU\...\Uninstall` 里 `WorkBuddy 5.8.3` → `DisplayIcon=D:\WorkBuddyAIgouji\WorkBuddy.exe,0`（去掉 `,0` 即真路径），
+`InstallLocation` 是空的，别指望它；② 改 `HKCU\Environment` 后广播 `WM_SETTINGCHANGE`（`SendMessageTimeoutW`，实测返回 1）；
+③ 显式路径优先于自动探测，所以这一步必然生效，不受本条主案那个 PS 兜底 bug 影响。
+
+**判"插件恢复没有"不要看界面文案，看插件自己落盘的账本**（这是本条新增的最硬判据）：
+
+| 文件 | 含义 | 本次读到的 |
+|---|---|---|
+| `~\.dsh\.workbuddy-catalog.json` | 国内版模型目录缓存，含 `source` 与 `fetchedAtMs` | mtime 停在 10-15 08:54、`source=workbuddy:cli` → 升级后再没成功过 |
+| `~\.dsh\.workbuddy-ai-catalog.json` | 国际版同上 | mtime 10-18 21:13、`source=workbuddy-ai:app` → 国际版一直是好的 |
+| `~\.dsh\.workbuddy-probe.json` | 国内版探测记录 | **不存在**（对照：ai 的那份在） |
+| `~\.dsh\.workbuddy-host-heartbeat.json` | 宿主心跳，带 `pid`/`pluginVersion` | 10-18 21:02、pid 52776（现已无此进程） |
+
+⇒ 恢复成功的硬判据 = 国内版那份 catalog 的 **mtime 变成当天**且 `source` 由 `workbuddy:cli` 变成 `workbuddy:app`。
+`source` 字段本身就是"有没有真的用上桌面 App"的证据，比任何提示文案可信。
+> **⚠ 2026-10-19 更正：上面这条判据对国内版是错的，别照用。** 插件 README 明写
+> 「国际版的模型目录来自 App 界面接口……**国内版目录走官方 CLI 同款接口，不受此影响**」，
+> 所以国内版 `source=workbuddy:cli` **就是正常来源**，不是降级、不是没走 App。
+> 两版正确的判据不同：**mtime 是否更新**（两版通用）+ 国际版才看 `source` 是否为 `workbuddy-ai:app`；
+> 国内版要判死活看**卡片状态页的账号/令牌有效期**，以及 `~\.dsh\.workbuddy-auth.json`（插件自留凭据副本）在不在——
+> README：某版 App 从未登录且没有自留副本时，**该版模型分组直接不显示**。
+
+**2026-10-19 已实跑验证：自动探测在本机是通的，但贴着超时线跑。**
+做法：把 `lib/host-heartbeat-sjotAEdb.js` 整份复制到 TEMP，补一个只导出 `resolveDshHome()` 的
+`@deepseek-ai/dsh-home-paths` 桩包（真包只在 DSH 的 asar 里，磁盘上没有，所以 `lib/bin.js doctor` 离线跑不了），
+然后调用插件**自己的** `atRestKeyProviderFor(variant).resolveElectronPath()`。
+⚠ 造路径必须用 `path.join`：反斜杠字面量会在「JSON→bash→Python→JS」这条链上被吃掉一层，
+结果 `D:\WorkBuddy…` 变成 `D:WorkBuddy…`，本会话连错两次才发现（同 auto-memory 里的 `reference-windows-python-encoding` 那一族坑，不是本库笔记）。
+
+| 配置 | workbuddy | workbuddy-ai |
+|---|---|---|
+| 两条变量都删（动态） | OK 7.2 s | OK 6.8 s |
+| 都删、换探测顺序 | OK 7.0 s | OK 7.4 s |
+| 两条都设（显式） | OK **0.0 s** | OK **0.0 s** |
+| 只设一条 | 另一条 OK 7.8 s | 另一条 OK 9.1 s |
+
+**根因升级（覆盖本条主案的旧解释）**：`discoveryBudgetMs = options.discoveryBudgetMs ?? 1e4`，
+即**每次探测预算 10 秒**，而本机动态探测实测要 **7–9 秒**，余量不足 30% —— 机器一忙（并发下载、别的会话在跑）
+就超时抛 `the … application search did not finish`。所以 10-12 那次「查不完」不只是 PS 兜底脚本的锅，
+**探测本身慢是同一症状的另一半成因**。新增判据：报这句时看耗时，接近 10 s 即预算被打满，不是 App 没装。
+
+**本机最终选择**：删掉两条变量走动态（升级换目录不会再坏），代价是冷启动多花 7–9 s × 2。
+若又报 `search did not finish`，用**从注册表现算**的命令加回来（路径不可能写错）：
+
+```powershell
+$cn = (Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\*' |
+       Where-Object DisplayName -match '^WorkBuddy \d').DisplayIcon -replace ',0$',''
+[Environment]::SetEnvironmentVariable('WORKBUDDY_ELECTRON_BIN', $cn, 'User')
+```
+
+## 2026-10-19 终局：两层根因都不是插件（启动器继承 + 网卡 DNS 写死）
+
+1. **删了注册表环境变量还报错** → 值在**长命启动器的进程环境块**里（本机 `DeskBox.exe` 拉起 DSH），
+重启被它拉起的程序无效。取证法：`OpenProcess(PROCESS_QUERY_INFORMATION|PROCESS_VM_READ)` →
+`NtQueryInformationProcess(class 0)` 拿 PEB → `PEB+0x20` 取 ProcessParameters → `+0x80` 取 Environment 指针 →
+读固定长度按 `\0` 分隔切；**别信 `EnvironmentSize`（偏移取错会读到 0，害你误判"环境块是空的"）**。
+附带一条：从自己的 shell 重启目标程序时 shell 本身也带旧值，必须显式剔除再传 env。
+2. **`catalog.error="fetch failed"` 的真因是 DNS**：网卡 DNS 被写死 `1.1.1.1,8.8.8.8`
+（`Get-NetIPInterface.Dhcp=Enabled` 会误导，接口注册表里有 `NameServer` 就是手动值、优先于 DHCP 下发），
+国内域名 `www.codebuddy.cn` 冷解析 11.15 s 且被指到海外节点。改 `223.5.5.5,119.29.29.29` 后 0.13 s、解析回国内 IP。
+**测域名必须分层计时（DNS/TCP/TLS/首字节）并先 `ipconfig /flushdns`**，否则第二次起全是缓存命中，
+会把 11 秒的问题测成 0 秒——这正是这类"只在软件启动瞬间发作"的故障难复现的原因。
+3. **不点 UI 也能读插件状态**：GET `http://127.0.0.1:<DSH监听口>/plugins/dsh-workbuddy-connect/{status|ai/status}`
+（带 `Host`+`Origin`），返回 `status` / `catalog.source` / `catalog.error` / `visibility.disabled`。
+4. 截图上「未登录」是**旧错误态**，接口实测 `status=signed-in` ⇒ 卡片文案滞后时以接口为准。
+
+## 补充：2026-11-13 实测复核（路径与版本漂移）
+

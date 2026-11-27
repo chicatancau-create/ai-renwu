@@ -1,0 +1,32 @@
+- 全链复验（verify_hans_launch2.py，11:08:15 空闲门控）：链内 update.log `up-to-date tag=v0.5.0`+`launched monitor chain`，app_pid=21956 带调试端口，抓图全中文，11:08:37 清理 remaining_pids=[]；产物归档 04_产物\verify_result2.json、hans_launch_capture2.png。
+- 回滚备份：归档 04_产物\backup\Antigravity.startmenu.lnk.bak（767 B）、*.chain1.bak（改链前 lnk）、D:\AI-Tool-State\antigravity-hans\backup\antigravity-hans.prev.exe（更新前 exe）。
+
+# 可复用规则
+
+- 判"汉化工具为何每次要跑"先看模式：CDP 动态=会话级必须随启动；静态补丁看产品分支（IDE vs 普通版）与覆盖范围（内嵌智能体/Swarm 页常不含）。
+- 整合第三方启动器优先复用其官方 shortcut/wrapper 产物，再 repoint 用户**现有**入口（备份 lnk 原件），而不是教用户改习惯或自写守护。
+- 读 lnk 用 WScript.Shell COM；PS 5.1 里 `foreach(...){...} | pipe` 非法，要 `$(foreach...)` 包起来。
+- 取 Go 交互菜单 exe 的 usage：写 ASCII .cmd 用 `< NUL` 重定向再跑；Start-Process -RedirectStandardInput 'NUL' 会被解析成工作目录下的 NUL 文件报 FileNotFoundException。
+- 含中文路径的 exe 先复制去 ASCII 稳定目录再进启动链，哈希核对保持一致。
+- conhost --headless 下控制台码页是 OEM936：PS 5.1 按它解 curl stdout 的 UTF-8 中文会出杂散反斜杠致 ConvertFrom-Json 失败（交互会话里同代码却正常）；改 `curl -o 临时文件` + `Get-Content -Raw -Encoding UTF8`，不依赖控制台解码。
+- 自动更新包装器必须"检查失败不阻塞启动"：记日志+回落旧版；替换前留 prev.exe 可回滚；exe 被监视器锁定时先 --stop 再重试替换。
+
+# 适用范围与不适用范围
+
+- 适用：普通版 Antigravity + yuexps/Antigravity-Hans（README 适配 2.34.0，本机 2.35.0 实测可用）；Windows 10 1809+（conhost --headless）。
+- 不适用：Antigravity IDE 想要"零进程永久汉化"→ 走 `--patch` 静态（但会话页仍需动态）；直接双击安装目录 exe 的启动方式不被本整合覆盖（仍英文）。
+
+# 剩余风险
+
+- 应用大版本更新后词库滞后：先 `--stop` 再按新图标启动；杀软对未签名 Go exe 启发式误报按 Release SHA256SUMS 核对。
+- 监视器残留：--nogui 会清理同会话无窗口残留；仍有可见窗口时会中止重启，需手动退出。
+- 开始菜单 repoint 后若用户用第三方启动器/直接双击 exe，仍英文；属原理边界非故障。
+- 自动更新依赖 GitHub API 可达（直连或代理回落）；长期不可达时保持旧版（update.log 可见），不影响中文启动。
+- 上游新版若与当前应用版本不兼容：首次启动会自动换新版，需手动 --stop 并用 backup\antigravity-hans.prev.exe 回滚。
+
+# 关联
+
+- 归档：G:\AIrenwu\01_任务归档\2026-11-24_反重力汉化与启动整合\（01_报告\整合说明.md、03_工具脚本\verify_hans_launch.py、verify_hans_launch2.py、04_产物\hans_launch_capture.png、verify_result.json、hans_launch_capture2.png、verify_result2.json、修复前首验同名产物 *.prefix、backup\Antigravity.startmenu.lnk.bak、*.chain1.bak）
+- 自动更新链实体：D:\AI-Tool-State\antigravity-hans\launch.ps1、update.log、version.json、backup\antigravity-hans.prev.exe
+- 上游：https://github.com/yuexps/Antigravity-Hans（releases/latest API 资产带 digest 字段，校验无需每次下 SHA256SUMS）
+- 同日前序：[[踩坑-CCSwitch判claude无法运行且反重力不识别-陈旧npm前缀遮蔽与进程PATH]]（CC Switch 的 Antigravity 条目=agy CLI，与桌面版本整合无关）

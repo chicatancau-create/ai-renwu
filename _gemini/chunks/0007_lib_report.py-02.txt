@@ -1,0 +1,64 @@
+    aux_mf = [(p, s) for p, s in own_mf if (p, s) not in core_mf]
+    core_by_top = collections.Counter(p.split(SEP)[0] for p, _ in core_mf)
+    idx_out = [(p, s) for p, s in D["index_jsons"] if not p.startswith("05-外部资料库" + SEP)]
+    weave_hits = [r for r in fset if "weave" in os.path.basename(r).lower()]
+
+    # 08 有 fm 的 17 份分布(复核「都是语料数据」的说法)
+    fm08 = []
+    for rel in D["md_by_dir"].get("08-判定题库", []):
+        t = S.read_text(os.path.join(ROOT, rel))
+        fm, _ = S.fm_parse(t)
+        if fm is not None:
+            fm08.append(rel)
+    fm08_dist = collections.Counter(SEP.join(r.split(SEP)[:3]) for r in fm08)
+    rag_prefix = "08-判定题库" + SEP + "专题题库" + SEP + "RAG-GoldenSet"
+    rag_only = bool(fm08) and all(r.startswith(rag_prefix) for r in fm08)
+    core_match = (len(core_mf) == 29 and core_by_top.get("01-阶段课程") == 9
+                  and core_by_top.get("06-实验代码") == 14 and core_by_top.get("08-判定题库") == 6)
+
+    # 体积阶梯: 先砍可选证据(脚本头/冗余表/重复样本/6、8节样本),
+    # 保 lead 指定内容(workflow 前25行、交接前120行)与 1/2/3/4/5/7 必备项;
+    # trim=3 才动 workflow/交接行数(硬上限兜底)。
+    q_lines = 40 if trim == 0 else (24 if trim == 1 else 14)
+    colo_cap = 40
+    wf_lines = 25 if trim < 3 else 12
+    hand_lines = 120 if trim < 3 else 60
+    script_heads = (trim == 0)
+    u01_sample = (trim == 0)
+    per_top_table = (trim == 0)
+    ext_n = 40 if trim == 0 else (25 if trim == 1 else 12)
+    field_n = 40 if trim == 0 else (25 if trim == 1 else 10)
+    ext_mf_n = 5 if trim == 0 else (3 if trim == 1 else 2)
+    p07_lines = None if trim == 0 else (30 if trim == 1 else 20)
+    wf_short = (trim >= 1)
+    core01_pattern = (trim >= 1)
+
+    L = []
+    A = L.append
+
+    # ================= 头部 =================
+    A("# 全栈工程师学习资料库 · 仓库快照报告")
+    A("")
+    A("- 生成时间：%s（本机本地时间）" % now)
+    A("- 扫描对象：`%s`（工作区现状，含未提交改动；非 HEAD 提交树）" % ROOT)
+    A("- 扫描方式：只读。Python `os.walk` 全量遍历 + 逐文件读取（`utf-8-sig, errors=replace`）；git 信息来自 `.git/config`、`.git/HEAD`、`.git/refs` 与只读命令 `git log -3`、`git ls-files -z`。未修改仓库内任何文件，未执行任何改变 git 状态的命令，未复跑任何门禁脚本。")
+    A("- 排除目录：`.git`（单独计大小）、`.obsidian`（实测不存在）、`node_modules`、`__pycache__`。")
+    A("- 脱敏：URL 内嵌凭据、常见 token 模式（ghp_/github_pat_/sk-/AKIA/xox/glpat）、邮箱、中国大陆手机号 → `***`。本次全部嵌入文本命中数：{PII_COUNT}。")
+    A("- 路径约定：正文引用用绝对路径；目录树与文件清单为仓库相对路径（根 = `%s`）。" % ROOT)
+    A("- 判定口径：frontmatter = 文件首行 `---` 且 200 行内出现闭合 `---`/`...`；链接计数用正则，markdown 链接含图片嵌入 `![](...)`；>2MB 的 md 跳过链接计数（本次 %d 个）。代码扩展名集合见第 3 节。" % D["big_skipped"])
+    A("- 本报告供 Gemini 做双仓架构分析（CodeWeave 主软件 + 本资料库）。所有「宣称」均来自仓库内文档原文（已嵌入），扫描员未独立验证；判不了的写「未确认」。")
+    A("")
+    A("## 执行摘要（扫描员结论，依据见对应章节）")
+    A("")
+    A("1. **规模极度偏斜**：工作区 %s 个文件 / %s，其中 `05-外部资料库` 占 md %s/%s（%.1f%%）、代码 %s/%s、体积 %s。该目录的 题库/ 与 知识库/ 被 `.gitignore` 整体排除（本地镜像，不进 Git）。自有内容仅 md %d 篇、代码 %d 个。任何全局索引方案必须先分层处理 05。" % (
+        format(D["total_files"], ","), S.fmt_size(D["total_size"]),
+        format(len(D["md_by_dir"].get("05-外部资料库", [])), ","), format(md_total, ","),
+        100.0 * len(D["md_by_dir"].get("05-外部资料库", [])) / max(md_total, 1),
+        format(D["dir_code"].get("05-外部资料库", 0), ","), format(D["code_count"], ","),
+        S.fmt_size(D["dir_size"].get("05-外部资料库", 0)), own_md, own_code))
+    fm08_claim = ("全部是 RAG-GoldenSet 判定题语料数据文件（字段 id/tenant/title/version），不是学习笔记"
+                  if rag_only else "分布见 5.1（均为题库数据文件，非学习笔记元数据）")
+    A("2. **自有学习笔记 frontmatter 覆盖率 ≈ 0%%**：全库 fm 覆盖 %.1f%%（%s/%s）几乎全部来自 05 外部抓取内容（%s 篇）；01/02/06/07 四个自有目录 0 篇有 fm；08 的 %d 篇有 fm 者%s。Gemini 建议的 stack/sandbox_path/related_ids 字段全库 0 命中。" % (
+        100.0 * D["fm_yes"] / max(fm_total, 1), format(D["fm_yes"], ","), format(fm_total, ","),
+        format(D["fm_by_top"].get("05-外部资料库", 0), ","), own_fm, fm08_claim))
+    A("3. **无知识索引**：`scripts/build-index.js` 不存在；全库无 weave-index.json；仓内 %d 个 *manifest*.json 中自有的 %d 个是「实验证据清单」（命令退出码+文件 sha256），不是知识点索引，与 Gemini 建议的 manifest.json 用途不同（详见第 3 节）。" % (len(D["manifests"]), len(own_mf)))

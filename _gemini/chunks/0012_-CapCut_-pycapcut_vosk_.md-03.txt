@@ -1,0 +1,21 @@
+- 混音电平：先按源 RMS/峰值配平各轨音量（本例旁白 1.2/现场 0.6/宿舍 0.95/环境 0.4/BGM 0.16），混音峰 >0.98 才触发全局安全衰减（本例 1.079→-0.8dB）；别靠全局衰减救削顶（会把安静段一起压掉）。成品 QA 双保险：关键时间点抽帧目视 + 大模型 ASR 回听混音对照字幕表。
+- v5 听感三条：①「静音保画面」会翻车——用户听感优先人声连续，宁可保留听不清的絮语；恢复时与相邻同源段同电平才无缝，且先测源段峰值定电平（中段峰 0.886，×1.8 直接削顶）。②硬切点加纯音频淡入淡出（plan 键 afade_in/afade_out，与视频 fade 分离）；线性交叉淡化宽度 ≤0.4s，0.8+0.8 会在切点留近静音洞。③草稿被 CapCut 打开时 .locked 占用，create_draft(allow_replace=True) 的 rmtree 报 PermissionError WinError32 → 另建新草稿名，不动用户会话。
+- v6 语气完整性三条（用户 m01335：「时间不重要，重要的是平淡」；上调语气被截=「抽象」）：①切点必须落在 silencedetect 实测静音锚点内（句尾落下后 ≥0.25s 才切、下句起调前 ≥0.25s 进），上调语气一律让它说完；连续独白宁可整段不内切。②停顿两侧的切点**不要**加音频淡化——淡化截语气反而突兀；afade 只用于环境声床的接落。③export 缓存纪律：时间线/段长变更后 fin_seg*.mp4 与 final_video.mp4 全部失效（段索引会移位），必须清缓存重编码，否则 mux 出旧画面+新音频的错位成品；**只改字幕**时仅 final_video.mp4 失效（fin_seg 与字幕无关可复用）。
+- v7 字幕校对法（用户 m01385「字幕识别准确一点」）：①vosk 大模型仍不够准 → faster-whisper 1.2.1 + large-v3（hf-mirror.com/Systran/faster-whisper-large-v3，model.bin 3.09GB，curl -sL 五文件）词级转写，口语干净一个量级；pip 走阿里云镜像装进 pylibs。②av 19 与 faster-whisper decode_audio 不兼容（TypeError: open() got an unexpected keyword argument 'metadata_errors'）→ ffmpeg -f f32le -ac 1 -ar 16000 解出 numpy 数组直接喂 transcribe。③**幻影字幕坑**：被 chunks 剪掉的句子若留着字幕=画面无声处挂字，逐句核对「字幕文本∈该块音频词序列」才能发现；字幕起止一律用词边界（首词 start/尾词 end），同轨留 ≥0.04s 间隙防 SegmentOverlap。④同音误字按语义+用户自述定（做→坐）；两模型分歧处取语义通顺者。
+- 收尾归档纪律（用户 m01552/m01560，详见 [[规则-工作区不留视频-交付即清中间产物]]）：①工作区不留视频——export/review 脚本的成品与缓存落 D:\AI-Tool-State\<任务>\输出 与 *-cache，工作区证据只留 jpg/ass/srt；交付确认后清成品+缓存（本轮清 ≈2.0GB）。②**草稿依赖媒体不可清**：CapCut 草稿引用 origins 备份/graded/bgm/narr_orig.m4a，草稿未删前清它们=丢媒体。③审查脚本的旁白源要跟 plan 同步换（曾潜 bug：plan 换 narr_orig.m4a 后 review_render 仍读旧 wechat_narr.wav）；m4a 用 ffmpeg 解 f32le 喂 numpy，wave 读不了。④用户剪辑偏好成文：全局记忆 feedback-vlog-plain-edit-preferences.md（平淡唯一目标、切点进静音锚点、上调语气说完、字幕逐字原话）。
+
+## v8 补充（2026-11-24，既有草稿「网店商品短视频」文件级细节优化）
+
+- **优化用户既有草稿走文件级，不碰 GUI**：备份整草稿目录 → 确认 CapCut 进程退出、`.locked` 消失 → 改 `Timelines/<uuid>/draft_content.json` 真身与根 `draft_content.json` 兼容副本（改后保持两份一致，可直接 Copy）→ 同步 `draft_meta_info.json` 与 `root_meta_info.json` 的 `all_draft_store[].tm_duration` → 重开 CapCut，**首页卡片时长显示随之更新**（本例 00:55→00:50），可作「CapCut 认可改后草稿」的间接验证；进编辑器仍须真实鼠标双击（再次复核）。
+- 结构对齐清单（本例缺陷与修法；脚本 `D:\AI-Tool-State\capcut-opt\optimize_draft.py`，前置断言不符即中止；备份 `D:\AI-Tool-State\capcut-opt\backup-1124`）：①滤镜/调整段边界须对齐主轨切点，否则镜头中途跳色（延长现有段补空窗，沿用用户原参数、不新造调色）；②主轨终点 < 总时长 = 黑尾，duration/BGM/节拍标记同步裁；③分屏溢出、四宫格 transform 亚像素错位 → 吸附精确 ±0.5；④speed 浮点噪声 round(2) 清理；⑤BGM 新建 audio_fade 材料挂 segment 的 extra_material_refs（fade_in_duration=500000 / fade_out_duration=1500000，µs）。
+- **首页单击+Enter 同样触发白窗僵尸**（复现 v4 的 TAB+ENTER）：Enter 打到隐藏「版本更新」弹层，全部窗口 IsWindowVisible=0 但进程活着，恢复出的窗口纯白。恢复法：`Stop-Process -Name CapCut -Force` + 重开（`Start-Process 'D:\CapCut\CapCut.exe' -WorkingDirectory 'D:\CapCut'`）；强杀后必须重读草稿确认未被僵尸实例内存反写（本例安全）。安装路径 `D:\CapCut\CapCut.exe`（开始菜单快捷方式解出）。
+- 只对齐结构、不改用户调色值与文字内容；内容级增补默认留选项给用户，用户授权「自己看最优解」时再代决。
+- 片尾卡最优解（2026-11-24 用户 m00233 授权代决）：原草稿 5.1s 黑尾实为预留片尾位 → Pillow 生成 1920×1080 品牌卡 PNG（复用开场两套字体 ttf、暖白渐变+粉晕、品牌+品名+slogan），**烘字 PNG 可 read_image 自验观感**，比 CapCut 文本材料风险低（代价：文字不可在 CapCut 编辑）。接入：克隆草稿既有 photo 材料（背景.jpg）改 path/宽高；克隆 photo 段只留 canvas+speed(1.0) 引用、去逐片段调色；主轨追加 3s；BGM 延至新结尾使淡出自然落位；duration/meta/root_meta 同步（52.45s，首页卡 00:53 间接验证）。备份 `D:\AI-Tool-State\capcut-opt\backup-before-endcard`。转场仍不加：快切是广告节奏，且 transitions schema 未经编辑器目视，风险>收益。
+- **外部编辑前必须重读当前 JSON**：用户会在编辑器里自己改参数并自动保存（本例用户已把冷白 0.5975→0.4），拿旧快照当基线会断言失败或覆盖用户改动。
+- 局部「白得夸张」修法（2026-11-24 用户 m00279 圈四宫格）：叠层归因=冷白+自然+调整3 亮度高三层叠在最亮源上 → 自然 0.8→0.45 + 四宫格逐片段 brightness-0.15/highlight-0.25 回拉（克隆既有 effect 材料改 value，adjust_params 为空、值只存 value，克隆安全）；只动目标场景、其余全片保持。备份 `D:\AI-Tool-State\capcut-opt\backup-before-natural`。
+
+## 关联
+
+- [[经验-无字幕视频批量ASR-whisper装不上改vosk小模型加imageio-ffmpeg]]（vosk 路线的前置经验）
+- [[经验-微信msg-video临时文件会被自动清理-收到媒体立即备份]]（本轮旁白源视频中途消失的教训）
+- 任务档案：`G:\AIrenwu\01_任务归档\2026-11-20_平静vlog剪辑\`（拍摄方案、准备报告、探针与 ASR 脚本、自测证据）

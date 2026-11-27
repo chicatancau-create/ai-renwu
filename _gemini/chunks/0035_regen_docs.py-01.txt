@@ -1,0 +1,89 @@
+"""Regenerate D:\\Skills\\README.md (stale: still says 21 skills / old junction layout)
+and create THIRD_PARTY.md - an honest provenance + licence register built from
+frontmatter fields, .skill-lock.json and existing PROVENANCE.md files.
+Nothing is invented: unknown sources are recorded as unknown.
+"""
+import json
+import os
+import re
+import subprocess
+import sys
+import time
+
+sys.stdout.reconfigure(errors="replace")
+LIB = r"D:\Skills"
+QT = r"D:\QoderToolkit"
+ACTIVE = r"D:\Skills-active"
+APPLY = "--apply" in sys.argv
+
+
+def fm_of(p):
+    t = open(p, encoding="utf-8", errors="replace").read()
+    if not t.startswith("---"):
+        return {}, t
+    e = t.find("\n---", 3)
+    raw, body = t[3:e], t[e + 4:]
+    fm, key = {}, None
+    for ln in raw.splitlines():
+        m = re.match(r"^([A-Za-z_][\w-]*):\s*(.*)$", ln)
+        if m:
+            key, val = m.group(1), m.group(2).strip()
+            fm[key] = "" if val in ("|", ">", "|-", ">-") else val.strip("'\"")
+        elif key and ln.startswith((" ", "\t")):
+            fm[key] = (fm[key] + " " + ln.strip()).strip()
+    return fm, body
+
+
+def reparse(p):
+    try:
+        return getattr(os.lstat(p), "st_reparse_tag", 0)
+    except OSError:
+        return 0
+
+
+skills = []
+for n in sorted(os.listdir(LIB)):
+    p = os.path.join(LIB, n)
+    if reparse(p) or not os.path.isdir(p):
+        continue
+    sm = os.path.join(p, "SKILL.md")
+    if not os.path.isfile(sm):
+        continue
+    fm, body = fm_of(sm)
+    files = sum(len(f) for _, _, f in os.walk(p))
+    byts = sum(os.path.getsize(os.path.join(dp, f)) for dp, _, fs in os.walk(p) for f in fs)
+    lic = [f for _, _, fs in os.walk(p) for f in fs if f.upper().startswith(("LICENSE", "NOTICE"))]
+    prov = any(f.upper().startswith("PROVENANCE") for _, _, fs in os.walk(p) for f in fs)
+    skills.append(dict(dir=n, name=fm.get("name", n), desc=fm.get("description", ""),
+                       homepage=fm.get("homepage", ""), license=fm.get("license", ""),
+                       author=fm.get("author", ""), version=fm.get("version", ""),
+                       files=files, bytes=byts, lic_files=lic, provenance=prov))
+
+lock = {}
+lp = r"C:\Users\Admin\.agents\.skill-lock.json"
+if os.path.isfile(lp):
+    lock = json.load(open(lp, encoding="utf-8")).get("skills", {})
+
+SELF = {"fs-fullstack", "fs-plan", "fs-scaffold", "fs-frontend", "fs-frontend-ui", "fs-backend",
+        "fs-database", "fs-testing", "fs-security", "fs-code-review", "fs-performance",
+        "fs-deploy", "fs-docs", "vision-tool", "local-ai-handbook", "windows-gui-control",
+        "xd-authoring", "obsidian-vault-validation", "skill-router", "headroom"}
+
+# Hard evidence gathered by probe_provenance.py / probe_qoder_push.py.
+# Every entry cites where it came from; nothing here is inferred from a name.
+EVIDENCE = {
+    "docx": ("Anthropic 官方文档技能；OpenClaw 预装（`.clawx-preinstalled.json` slug=docx，"
+             "2026-08-11，version=b29e7cf6…）",
+             "**专有** `LICENSE.txt`：© 2025 Anthropic, PBC. All rights reserved.（禁止在 Services 外保留副本 / 转移第三方）"),
+    "pdf": ("Anthropic 官方文档技能；OpenClaw 预装（slug=pdf，2026-08-11，version=b29e7cf6…）",
+            "**专有** © 2025 Anthropic, PBC.（同 docx）"),
+    "pptx": ("Anthropic 官方文档技能；OpenClaw 预装（slug=pptx，2026-08-11，version=b29e7cf6…）",
+             "**专有** © 2025 Anthropic, PBC.（同 docx）"),
+    "xlsx": ("Anthropic 官方文档技能；OpenClaw 预装（slug=xlsx，2026-08-11，version=b29e7cf6…）",
+             "**专有** © 2025 Anthropic, PBC.（同 docx）"),
+    "skill-creator": ("WorkBuddy 市场（`_skillhub_meta.json` skillId=skill_2053082698440450048，v0.2.0）",
+                      "Apache-2.0（随包 `LICENSE.txt` 全文）"),
+    "darwin-skill": ("WorkBuddy 市场（skillId=skill_2053081519859650560，v1.0.0）；"
+                     "正文上游 URL `github.com/alchaincyf/darwin-skill`", "**未声明**"),
+    "fullstack-dev": ("WorkBuddy 市场（skillId=skill_2053082011994116096，v1.0.0）", "MIT（frontmatter `license`）"),
+    "github": ("WorkBuddy 市场（skillId=skill_2053082027691548672，v1.0.0）", "**未声明**"),

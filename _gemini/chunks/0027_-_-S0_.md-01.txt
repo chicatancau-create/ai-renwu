@@ -1,0 +1,81 @@
+---
+title: "电源按钮/盖子动作反复变回睡眠、且有时只进 S0 不落盘-S0现代待机未配置转休眠与组策略硬锁"
+date: 2026-11-25
+domain: common
+category: 调试与验证
+status: verified
+severity: medium
+stack: ["Windows 11", "powercfg", "Modern Standby", "组策略", "PowerShell"]
+tags: ["电源方案", "休眠", "睡眠", "盖子按钮", "S0现代待机", "PlatformAoAcOverride", "组策略覆盖", "计划任务", "注册表ACL", "Deny优先于Allow"]
+---
+
+# 问题：电源按钮、睡眠按钮、盖子动作总被改回"睡眠"，且有时只进 S0 不落盘
+
+> `verified`：已在 ZHOUMO 笔记本（Win11，卓越性能方案）复现、定位、修复并逐项验证。
+
+## 一句话结论
+
+三个独立问题叠在一起：**显示层**是电源方案里四个按钮动作被反复重置为 1（睡眠），用 `HKLM\SOFTWARE\Policies\Microsoft\Power\PowerSettings\<设置GUID>` 组策略键硬锁可抗重置；**行为层**才是"感觉没休眠"的主因——本机固件不支持 S3、只支持 S0 现代待机（Modern Standby），近 30 天 `Kernel-Power ID=506` 出现 **140 次**，而真休眠（S4，按"POST+boot 0x2+时钟跳变"三件套判定）近 7 天有 **23 次**；**配置层**有两个必踩的坑：`PlatformAoAcOverride` 必须写在 `HKLM\SYSTEM\CurrentControlSet\Control\Power`（写进 `Session Manager\Power` 内核根本不读，重启也白搭），且 `HibernateAfterTimeout` 原本不存在。
+
+**最终结局（2026-11-25 17:15 验证）**：`PlatformAoAcOverride=0` 重启后 **S0 从 `powercfg /a` 里整条消失**，全机只剩「休眠」一种睡眠状态；11 个组策略键扛过重启，`powercfg` 直写被拒；`13:42` 实际合盖实测端到端走真休眠（S4）并正确恢复。**问题已彻底解决。**
+
+> 📌 **2026-11-25 13:09 重要纠正**：本条早期版本写「真休眠 0 次，从来没真休眠过」，**那是错的**。`ID=506/507` 是 S0 往返记录，不能用来判断有没有真休眠。真休眠确实发生过（`11-24 14:10:37`、`11-24 18:13:35`、`11-24 21:54:46`、`11-25 08:19:21`、`11-25 08:28:12` 五次）。正确判据见「可复用规则」第 7 条。这不推翻修复方案（策略硬锁 + 清空自动睡眠定时器 + 关待机状态仍然正确），只是病情描述没那么严重。
+
+### ✅ 2026-11-25 17:15 终局验证：S0 已从系统能力里彻底消失（原先的不确定性已全部关闭）
+
+早期版本这里写着"未闭环的不确定性"，现在**全部实测关闭**。用户在 `15:51:44` 执行重启（`Kernel-Boot ID=27 boot type 0x0` 冷启动，非休眠恢复），`17:15` 复查：
+
+**`powercfg /a` 重启后的完整输出**
+
+```
+此系统上有以下睡眠状态:
+    休眠
+
+此系统上没有以下睡眠状态:
+    待机 (S1)   系统固件不支持此待机状态。/ 当前电源策略已禁用此待机状态。
+    待机 (S2)   系统固件不支持此待机状态。/ 当前电源策略已禁用此待机状态。
+    待机 (S3)   系统固件不支持此待机状态。/ 当前电源策略已禁用此待机状态。
+    待机(S0 低电量待机)   系统固件不支持此待机状态。      ← 关键变化
+    混合睡眠    待机(S3)不可用。/ 虚拟机监控程序不支持此待机状态。
+    快速启动    当前系统策略禁用此动作。
+```
+
+**关键对比**：重启前 S0 虽也写着"系统固件不支持"，但仍**留在"此系统上有以下睡眠状态"的清单里**；重启后 S0 **整条掉进了"此系统上没有以下睡眠状态"**。区别就是那一句"系统固件不支持"在重启前是**误报**（`PlatformAoAcOverride` 未被内核读取），重启后才是真的被枚举掉了。
+
+**行为旁证**：`15:51:59` 开机至 `17:16`（约 1 小时 25 分）内 `Kernel-Power` 的 `ID=42`（进睡眠）、`ID=506/507`（S0 往返）**全部 0 次**。对照组：上一轮 `12:31:33` 开机后同样 1.5 小时窗口里出现了 **3 次** `ID=506 ... Reason: Idle Timeout`。
+
+**因此三条结论可以确定了**：
+
+| 原先的问题 | 现在 |
+|---|---|
+| `abfc2519`（ALLOWSTANDBY）能不能关 S0 | **不能**，它只影响 S1-S3 |
+| `PlatformAoAcOverride=0` 能不能关 S0 | ✅ **能**，重启后 S0 从系统能力里消失 |
+| 空闲超时还会不会进 S0 | ✅ **不会了**，重启后 1.5 小时内 0 次 |
+
+**两个键各管一段，都要写**：`abfc2519=0` 管 S1/S2/S3，`PlatformAoAcOverride=0`（写在 `Control\Power`）管 S0，且后者**必须重启**才被内核读取。
+
+
+## 触发条件与影响
+
+- 项目或功能：Windows 电源管理（盖子、电源按钮、睡眠按钮、开始菜单电源按钮）
+- 环境与版本：Windows 11 中文版；机型固件不支持 S1/S2/S3，仅支持 S0 低电量待机 + 休眠；活动方案「卓越性能」`2f999320-a8e1-4096-9d26-9c990ae4056d`
+- 触发条件：
+  1. 第三方工具（本机为 `D:\open-revo\open-revo.exe`）周期性调用 `SetSuspendState` 并切换 overlay 电源方案；打开「设置」App 本身也会 reset 方案。
+  2. 任何程序用 `powercfg /setacvalueindex` 写按钮设置后，下一次方案 reset 又被覆盖回 1。
+  3. 机器只支持 S0，`HibernateAfterTimeout` 缺省为空 → 按"休眠"之外的路径进入 S0 后永不转 hibernate。
+- 影响范围：按电源键/合盖/按睡眠键后机器进入 S0 现代待机（联网待机、耗电、可能被唤醒），用户以为"设的是休眠没用"。
+
+## 复现步骤
+
+1. 前置条件：`powercfg /a` 显示支持「待机 (S0 低电量待机) 连接的网络」与「休眠」，S1/S2/S3 均不支持。
+2. 操作或命令：`powercfg /qh SCHEME_CURRENT SUB_BUTTONS`（必须带 `h`）。
+3. 预期结果：四个按钮动作值为 2（休眠）。
+4. 实际结果：值为 1（睡眠）；或改完后过一段时间又变回 1。
+5. 行为复现：`Get-WinEvent -FilterHashtable @{LogName='System';ProviderName='Microsoft-Windows-Kernel-Power'}` 只看到 ID=506「entering Modern Standby」，**看不到真正落盘休眠**。
+
+## 证据
+
+- `powercfg /qh SCHEME_CURRENT SUB_BUTTONS` 一度读到 `合上盖子操作 AC=0x00000001`（睡眠）。
+- `Microsoft-Windows-UserModePowerService` ID=12：`Process C:\Windows\ImmersiveControlPanel\SystemSettings.exe ... reset policy scheme from {2f999320…} to {2f999320…}` —— **打开设置界面就会重写方案**。
+- `Microsoft-Windows-Kernel-Power` ID=42 近 14 天 39 次，其中 28 次 `Sleep Reason: Application API`；ID=187 每 2~3 小时一次 `User-mode process attempted to change the system state by calling SetSuspendState or SetSystemPowerState APIs`。
+- `HKLM\SYSTEM\CurrentControlSet\Control\Power` 下**没有** `HibernateAfterTimeout` 值（`(Get-Item ...).GetValueNames()` 全量列举确认）。

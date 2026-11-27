@@ -1,0 +1,88 @@
+                m = re.match(r"^([0-9a-f]{40}) ([0-9a-f]{40}) .+? (\d+) [+\-]\d+\tcommit(?: \([^)]*\))?: (.*)$", l)
+                if m:
+                    ts = datetime.datetime.fromtimestamp(int(m.group(3))).strftime("%Y-%m-%d %H:%M:%S")
+                    rows.append([m.group(2)[:7], ts + " (本地reflog时间)", m.group(4)])
+            if rows:
+                commits = rows[-3:][::-1]
+                src = ".git/logs/HEAD reflog 回退解析"
+    D["commits"], D["commits_src"] = commits, src
+    D["fullstack_code"] = probe_dir(r"E:\fullstack-code")
+    return D
+
+def fmt_size(n):
+    if n is None or n < 0:
+        return "?"
+    for unit in ("B", "KB", "MB", "GB"):
+        if n < 1024 or unit == "GB":
+            return "%.1f%s" % (n, unit) if unit != "B" else "%dB" % n
+        n /= 1024.0
+
+def dump(D):
+    P = print
+    P("=== 1 GIT ===")
+    P("branch:", D["branch"], "sha:", D["branch_sha"])
+    P("remotes:", D["git_remotes"], "proxy:", D["git_proxy"])
+    P("commits(%s):" % D["commits_src"], D["commits"])
+    P("E:\\fullstack-code:", D["fullstack_code"])
+    P("walk_errors:", D["walk_errors"][:10], "共", len(D["walk_errors"]))
+    P(".obsidian exists:", D["obsidian_exists"])
+    P("=== 2 TREE (depth3, md/code 计数) ===")
+    def show(node, prefix, depth):
+        items = sorted(node.items())
+        for i, (name, sub) in enumerate(items):
+            if i >= 40:
+                P(prefix + "... 另有 %d 个目录未展开" % (len(items) - 40)); break
+            rel = (prefix_rel[0] + "/" + name) if prefix_rel[0] else name
+            ann = ""
+            if depth <= 2:
+                key = rel.replace("/", os.sep)
+                ann = "  [md:%d code:%d]" % (D["dir_md"].get(key, 0), D["dir_code"].get(key, 0))
+            P(prefix + name + "/" + ann)
+            if depth < 3:
+                old = prefix_rel[0]
+                prefix_rel[0] = rel
+                show(sub, prefix + "  ", depth + 1)
+                prefix_rel[0] = old
+    prefix_rel = [""]
+    show(D["tree"], "", 1)
+    P("=== 3 STATS ===")
+    P("files:", D["total_files"], "size:", fmt_size(D["total_size"]), ".git:", fmt_size(D["git_size"]))
+    P("md:", len(D["md_files"]), "code:", D["code_count"], "attach:", D["attach_count"])
+    P("ext_hist:", D["ext_hist"].most_common(40))
+    P("manifests(%d):" % len(D["manifests"]))
+    for p, s in D["manifests"]:
+        P("  ", p, fmt_size(s))
+    P("index_jsons(%d):" % len(D["index_jsons"]), [p for p, _ in D["index_jsons"]][:20])
+    P("=== 5 FRONTMATTER ===")
+    tot = D["fm_yes"] + D["fm_no"]
+    P("有fm: %d / 无fm: %d / 总: %d (%.1f%%)" % (D["fm_yes"], D["fm_no"], tot, 100.0 * D["fm_yes"] / max(tot, 1)))
+    P("fm_by_top:", D["fm_by_top"].most_common())
+    P("md_by_top:", {k: len(v) for k, v in sorted(D["md_by_dir"].items())})
+    P("size_by_top:", {k: fmt_size(v) for k, v in sorted(D["dir_size"].items()) if os.sep not in k})
+    P("fields:", D["field_ctr"].most_common(40))
+    P("gemini_fields:", dict(D["gemini_ctr"]))
+    P("by_dir:", D["fm_by_dir"])
+    for d, ss in D["fm_samples"].items():
+        for s in ss:
+            P("--- sample:", s["path"], "has_fm:", s["has_fm"])
+            if s["fm"]:
+                P(s["fm"][:800])
+    P("=== 6 LINKS ===")
+    P("wikilinks:", D["wiki_n"], "mdlinks:", D["mdlink_n"], "big_skipped:", D["big_skipped"])
+    P("links_scope:", D["links_scope"])
+    P("=== MANIFEST SAMPLES ===")
+    for k in ("manifest_exp", "manifest_u01", "manifest_proj"):
+        P("---", k, D[k]["path"])
+        if D[k]["text"]:
+            P(D[k]["text"][:4000])
+    P("=== 07 README ===")
+    P(head_lines(D["p07_readme"], 60))
+    P("list_02:", D["list_02"])
+    P("list_07:", D["list_07"])
+    P("list_01_root:", D["list_01_root"])
+    if D["question_sample"]:
+        P("--- 08 sample:", D["question_sample"]["path"])
+        P(D["question_sample"]["head"])
+    P("=== 7 SCRIPTS ===")
+    P("build-index.js exists:", D["build_index_exists"])
+    for s in D["scripts"]:

@@ -1,0 +1,74 @@
+  check('显示「标准模式」', result.text.includes('标准模式'), result.text)
+  check('显示「PTC 模式」', result.text.includes('PTC 模式'))
+  check('显示「极简模式」', result.text.includes('极简模式'))
+  check('显示「创造模式」', result.text.includes('创造模式'))
+  check('不出现裸 id', !result.text.includes('- `standard` standard'), result.text)
+}
+
+console.log('\n场景 4c：可以直接用中文名切换')
+{
+  const env = makeEnv({ roster: [
+    { id: 'standard', trust: 'system' },
+    { id: 'cordis', trust: 'system' },
+  ] })
+  const result = await invoke(env, '创造模式')
+  check('返回 success', result.kind === 'success', result.kind)
+  check('切到 cordis', env.calls.select[0]?.id === 'cordis', env.calls.select[0]?.id)
+  check('文案含创造模式', result.text.includes('创造模式'), result.text)
+}
+
+console.log('\n场景 5：`/preset 不存在的名字` → 报错且不调 select')
+{
+  const env = makeEnv()
+  const result = await invoke(env, 'nope')
+  check('返回 error', result.kind === 'error', result.kind)
+  check('提示列出可用项', result.text.includes('standard') && result.text.includes('team'), result.text)
+  check('没有调用 select', env.calls.select.length === 0)
+}
+
+console.log('\n场景 6：`/preset broken-one` → 拒绝不可用预设')
+{
+  const env = makeEnv()
+  const result = await invoke(env, 'broken-one')
+  check('返回 error', result.kind === 'error', result.kind)
+  check('给出不可用原因', result.text.includes('加载失败'), result.text)
+  check('没有调用 select', env.calls.select.length === 0)
+}
+
+console.log('\n场景 7：宿主拒绝（locked）→ 错误被翻译成文案')
+{
+  const env = makeEnv({ selectThrows: true })
+  const result = await invoke(env, 'team')
+  check('返回 error', result.kind === 'error', result.kind)
+  check('文案含锁定原因', result.text.includes('already started'), result.text)
+}
+
+console.log('\n场景 8：取不到 live Agent 时回退到命令自带的 agent')
+{
+  const env = makeEnv({ noAgents: true })
+  const result = await invoke(env, 'team')
+  // 命令给的 agent 只有 id，没有 ctx/session → 应被拒绝，而不是崩掉。
+  check('返回 error 而不是抛异常', result.kind === 'error', result.kind)
+  check('说明找不到 Agent', result.text.includes('找不到'), result.text)
+}
+
+console.log('\n场景 9：取不到 live Agent，但命令给了完整 agent → 仍可切换')
+{
+  const env = makeEnv({ noAgents: true })
+  const fullAgent = { id: 'sess-1', ctx: { marker: 'agent-ctx' }, session: { append() {} } }
+  const result = await invoke(env, 'team', fullAgent)
+  check('返回 success', result.kind === 'success', result.kind)
+  check('调用了 select', env.calls.select.length === 1)
+}
+
+console.log('\n场景 10：前后空格被裁掉')
+{
+  const env = makeEnv()
+  const result = await invoke(env, '  team  ')
+  check('返回 success', result.kind === 'success', result.kind)
+  check('id 无空格', env.calls.select[0]?.id === 'team', env.calls.select[0]?.id)
+}
+
+console.log(`\n${'='.repeat(50)}`)
+console.log(`结果：${pass} 通过，${fail} 失败`)
+process.exit(fail === 0 ? 0 : 1)

@@ -1,0 +1,66 @@
+---
+title: "DSH 启动弹黑框等按键：守卫脚本 pause 叠加遗留中间态目录"
+date: 2026-11-20
+domain: common
+category: "调试与验证"
+status: verified
+severity: medium
+stack: ["Windows", "Python", "cmd", "VBScript", "DeepSeek Harness"]
+tags: ["启动守卫", "无窗口启动", "中间态目录", "pause", "wscript"]
+---
+
+# 问题：开关 DeepSeek Harness 时弹黑色命令框，停在「请按住任意键继续」，必须按键才能进
+
+## 一句话结论
+
+黑框来自自建的启动守卫 `D:\DSH-Guard\start_dsh.bat`：它用可见的普通 cmd 窗口跑两个 Python 检查，且用 `pause` 阻塞；当天触发条件是 `migrate_guard.py` 修完 `.local` 联接后清理备份目录静默失败，留下 `C:\Users\Admin\.local.__guard_bak`，被自己的「遗留中间态」扫描判为人工待确认项 → 退出码 2 → `pause` 等按键。改成 wscript 隐藏启动 + 去掉 pause + 中间态冗余自愈后，黑框与按键彻底消失。
+
+## 触发条件与影响
+
+- 项目或功能：本机 DeepSeek Harness 桌面版启动链路（开始菜单快捷方式 → 启动守卫 → 主程序）
+- 环境与版本：Windows 11 单用户 `C:\Users\Admin`；DSH 内核 0.2.2-rc.5；Python 3.14（`D:\PyCharm\Python\python.exe`）
+- 触发条件：守卫任一步退出码为 2（缓存迁移有待处理项 / 内核版本对齐失败）；本例是 `.local` 回流被自动修复后遗留 `.__guard_bak`
+- 影响范围：每次开 App 都要手动按键；窗口一直挂着不消失，用户误以为「关软件时又弹一次」。不影响 App 本身运行
+
+## 复现步骤
+
+1. 前置条件：`C:\Users\Admin\.local` 被某个程序重建成实体目录（C 盘回流），`D:\DevCache\.local` 仍有旧数据
+2. 操作或命令：点开始菜单「DeepSeek Harness」（指向 `D:\DSH-Guard\start_dsh.bat`）
+3. 预期结果：静默检查后直接进 App
+4. 实际结果：弹出黑色 cmd 窗口，打印 `[DSH guard] checking cache migration state...`，随后 `[回流] .local ... 已恢复联接 -> D:\DevCache\.local`、`[需处理] 发现遗留中间态目录 .local.__guard_bak（0.00 GB），数据未丢，需确认后再删`、`[WARN] cache migration issue found, see D:\DSH-Guard\migrate_guard.log`、`Press any key to start anyway, or close this window to fix it first.`、`请按住任意键继续。。。`，按键后 App 才启动
+
+## 证据
+
+- `D:\DSH-Guard\migrate_guard.log` 2026-11-20 15:02:23~24 段落：
+  - `[回流] .local: 程序把 C 盘路径重建成实体目录，正在合并回 D 盘并恢复联接`
+  - `  .local: 已恢复联接 -> D:\DevCache\.local`
+  - `[汇总] 正常 24 个 / 自动修复 1 个 / 待处理 1 个`
+  - `[需处理] 发现遗留中间态目录 .local.__guard_bak（0.00 GB），数据未丢，需确认后再删`
+- 11-15~11-19 每次启动日志只有 `[提示] .headroom: 仍是 C 盘实体目录（0.01 GB），尚未迁移，不影响使用` + `[汇总] 正常 25 个 / 自动修复 0 个 / 待处理 0 个`，退出码 0，因此那些天没有黑框停留（只有一闪而过的窗口）
+- `Get-Item C:\Users\Admin\.local` → `LinkType=Junction, Target=D:\DevCache\.local`（联接已恢复）
+- `C:\Users\Admin\.local.__guard_bak` 内 3 个文件（`share\opencode\snapshot\<hash>\<hash>\objects\pack\pack-32d4b62ca900300f472c104f894c6b4715d37972.{idx,pack,rev}`，合计 292389 字节）与 `D:\DevCache\.local` 同名同大小且 SHA256 完全一致 → 纯冗余
+- 开始菜单快捷方式原始属性：`Target=D:\DSH-Guard\start_dsh.bat`、`WindowStyle=1`（普通窗口，所以黑框可见）
+
+## 根因分析
+
+- 已确认的根因（两层）：
+  1. `migrate_guard.py` 的 `migrate_back()` 在重建联接成功后执行 `shutil.rmtree(bak, ignore_errors=True)`，删不掉也不报错，残留 `.__guard_bak`；主流程随后把这个残留当「需人工确认」计入 `problems` → `return 2`
+  2. `start_dsh.bat` 对退出码 2 用 `pause` 阻塞，且窗口是可见普通窗口 → 必现「按键才继续」，且该窗口在用户不理会时一直挂着，看起来像「关闭时又弹」
+- 排除过的假设：不是 DSH 自身的退出钩子（`D:\DevCache\.dsh\profiles\desktop` 与注册表 Run、计划任务里都没有引用 `DSH-Guard` 的关闭动作）；不是 billion-context/headroom 弹窗
+- 问题归属：本次修复引入（`.__guard_bak` 是昨天误删 junction 事故的中间态，被守卫自己的清理逻辑留下）
+
+## 最小修复
+
+1. 冗余中间态移走（备份而非直接删）：`C:\Users\Admin\.local.__guard_bak` → `D:\DSH-Guard\_maintenance\_backup\local.__guard_bak-20261120-1508`（3 个文件，哈希与 D 盘一致）
+2. `D:\DSH-Guard\migrate_guard.py` 改变三处：
+   - 新增 `file_sha1()` / `tree_manifest()` / `leftover_is_duplicate()` / `rm_tree_retry()`：删除失败重试 6 次（间隔 0.4s），仍失败则挪到 `D:\DSH-Guard\_pending_bak`，绝不把「删不掉」变成「卡启动」
+   - `migrate_back()` 里两处 `shutil.rmtree(bak, ignore_errors=True)` 全部换成 `rm_tree_retry()`
+   - 中间态扫描改为先判冗余：`*.__moving` / `*.__guard_bak` 若其文件（相对路径 + 大小 + 小文件 SHA256）全部已存在于 `D:\DevCache\<同名>`，直接删除并计入 `repaired`；只有真正无法判定冗余时才计入 `problems`
+   - `--popup` 条件从 `(repaired or problems)` 收紧为 `problems`：自动修复只写日志，不打断启动
+3. `D:\DSH-Guard\start_dsh.bat` 重写：删掉全部 `pause`；输出全部重定向到 `D:\DSH-Guard\last_launch.log`；`migrate_guard.py` 带 `--popup`（只在有待处理项时弹中文框）；内核对齐失败（rc=2）时先启动 App 再调 `notify.py kernel` 弹框；新增 `DSH_GUARD_NO_LAUNCH=1` 用于只检查不启动；文件保持纯 ASCII（中文都在 py 里）
+4. 新增 `D:\DSH-Guard\start_dsh_silent.vbs`：`WScript.Shell.Run "<bat>", 0, False`——隐藏窗口、不等待
+5. 新增 `D:\DSH-Guard\notify.py`：中文消息框，代码 `migrate` / `kernel`，写 `D:\DSH-Guard\notify.log`
+6. 开始菜单快捷方式改为 `Target=C:\Windows\System32\wscript.exe`、`Arguments="D:\DSH-Guard\start_dsh_silent.vbs"`、`WorkingDirectory=D:\DSH-Guard`、`WindowStyle=7`、图标沿用 `D:\DeepSeek Harness\DeepSeek Harness.exe,0`
+
+## 验证记录
+

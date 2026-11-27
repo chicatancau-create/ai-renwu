@@ -1,0 +1,99 @@
+---
+title: "AtomGit（gitcode.com / atomgit.com）与 GitHub 的差异与国内推送判据"
+date: 2026-10-15
+domain: common
+category: 03-通用/04-工程规范与安全
+status: verified
+severity: low
+stack: [Git, AtomGit, GitHub, Windows]
+tags: [代码托管, Git, 网络, 认证, 交付流程]
+---
+
+# 问题：仓库托管在 AtomGit 上，和 GitHub 有什么不一样、推送时该按哪套判据
+
+## 一句话结论
+
+AtomGit 是国内平台（开放原子开源基金会联合 CSDN 等推出，GitCode 品牌升级而来），**`gitcode.com` 与 `atomgit.com` 是同一套后端的两个域名**；
+对本机而言它和 GitHub 最实际的差别是**网络方向相反**：AtomGit 直连 0.4 s 就通、不需要代理，GitHub 直连常被重置、push 要挂 `127.0.0.1:7897`。
+
+## 触发条件与影响
+
+- 项目或功能：`E:\nodejs` → `https://gitcode.com/zhoujinwei/nodejs.git`（学习 Git 基本操作用）。
+- 环境与版本：Win11 28000 + 本机 git；系统代理 `127.0.0.1:7897`（`ProxyEnable=1`）。
+- 触发条件：选托管平台、写克隆地址、排查"推不上去/域名是不是挂了"。
+- 影响范围：判据用错会把"一次 git 侧超时"当成"域名不通"，也会白白给国内站挂代理。
+
+## 复现步骤
+
+1. 前置条件：本地仓库已 commit、`git branch -vv` 显示 `[origin/main]` 无 ahead。
+2. 操作或命令（全部只读）：
+   - `GET https://<host>/zhoujinwei/nodejs.git/info/refs?service=git-upload-pack`，host 分别取 `gitcode.com` / `atomgit.com`（空 ProxyHandler 直连）；
+   - `git ls-remote --heads https://atomgit.com/zhoujinwei/nodejs.git`（带 `GIT_TERMINAL_PROMPT=0`）。
+3. 预期结果：两域名同一后端则返回同一 HEAD。
+4. 实际结果：见证据。
+
+## 证据
+
+- 裸 HTTP smart-HTTP 端点：`gitcode.com` **200 / 0.4 s**、`atomgit.com` **200 / 0.4 s**，
+  两边首块都是 `# service=git-upload-pack` + 同一个 `91acb3670a63b243e7085b61b1d0f1c28cd2ec0b` → **同一套后端**，克隆地址用哪个域名都行。
+- 两个域名首页与仓库页 `<title>` 完全一致（`AtomGit - 全球开发者的开源社区…` / `nodejs - AtomGit`）。
+- 但 `git ls-remote` 走 `atomgit.com` 那次 **60 s 超时**，而同一端点裸 HTTP 0.4 s 就通 → **git 侧一次超时判不了域名不通**（凭据助手交互、连接复用等都可能造成，未逐一定位）。
+- 推送方向的网络差别（本机既有实测）：GitHub 直连 push 常 `Connection was reset`，要 `git -c http.proxy=http://127.0.0.1:7897 push`；
+  AtomGit 国内直连即可，**不要**给它挂代理（挂上反而绕到境外出口）。
+- 认证：AtomGit/Gitee 这类非 GCM 内置站要显式 `git config --global credential.https://<host>.provider generic`，
+  HTTPS 推送用户名是 handle（`zhoujinwei`）、密码是**访问令牌**；GCM 弹窗默认带出的用户名是 `git config user.name`，两者不一致就会 `Access denied`。
+- 该仓库当前状态：本地与远端同为 `91acb36`，`git branch -vv` 已无 `ahead` → 推送链路实测走通。
+
+## 根因分析
+
+- 已确认的根因：品牌演进 —— 2023-09-22 CSDN 与华为云 CodeArts 联合推出 GitCode，其后升级为 AtomGit
+  （开放原子开源基金会联合 CSDN 等生态伙伴），于是出现「一个平台、两个域名」。
+- 排除过的假设：不是两个独立站点做数据同步（同一 HEAD、同一响应体形状）；不是 CDN 假象（git smart-HTTP 报文一致）。
+- 问题归属：环境/平台事实，非代码缺陷。
+
+## 最小修复
+
+选平台按用途走，别混用判据：
+
+| 维度 | AtomGit / GitCode | GitHub |
+|---|---|---|
+| 网络（本机） | 直连 0.4 s，**不用代理** | 直连常 reset，push 走 `7897` |
+| 认证 | 访问令牌当密码 + handle 当用户名；GCM 要显式 `provider generic` | PAT / SSH / 浏览器授权，GCM 内置 provider |
+| 域名 | `gitcode.com` 与 `atomgit.com` 同一后端，可互换 | 单一 `github.com` |
+| 生态 | AtomCode 云开发与 AI 助手、面向国内的开源镜像与下载量统计 | Actions / Codespaces / Pages / Packages / Copilot，全球可见度与开源项目量级 |
+
+课程作业、国内交付、要稳定快 → AtomGit（或 Gitee）；要让全球看到、参与开源、用 CI 与 Copilot → GitHub。
+两边同时用就配两个 remote（`git remote add github …`），分别 push，别用 `git pull` 当"上传"。
+
+## 验证记录
+
+- [x] 只读行为测试：两域名 git smart-HTTP 端点各取一次，HEAD 一致。
+- [x] 网页标题对照：两域名首页与仓库页 title 一致。
+- [x] 推送链路：该仓库本地与远端 commit 号一致（`ahead` 归零）。
+      **2026-10-15 稍后复核**：同一仓库变为匿名 403「The project you were looking for could not be found」、
+      网页 404、**带凭据 `git ls-remote` 同样报找不到** → 远端仓库已不存在或已改名/转移，本地 `91acb36` 仍在。
+      上面这条证据只在当时成立，别拿它当"现在还在"。
+- [ ] 未做：单仓库容量、带宽限制、免费额度、内容审核细则 —— 没查官方页就不写数字。
+
+## 可复用规则
+
+**判"某托管域名是否可用"用不带凭据的 git smart-HTTP 行为测试**（`/info/refs?service=git-upload-pack`），
+拿到 `# service=…` 首块即证明链路与仓库存在；`git` 命令侧超时只能证明"这一次 git 没拿到响应"，
+要带 `GIT_TERMINAL_PROMPT=0` 重跑一次再下结论。**给国内站挂代理是反向优化**，代理只留给 GitHub 这类出境链路。
+
+## 适用范围与不适用范围
+
+- 适用：本机选择克隆地址、配置 remote、排查推送失败；判断 AtomGit 双域名关系。
+- 不适用：GitHub 特有的 Actions/Copilot 能力评估；企业自建 GitLab；平台配额与合规条款（未查证）。
+
+## 剩余风险
+
+AtomGit 双域名同后端是 2026-10-15 的实测，平台后续可能收敛域名或改认证策略；
+`git ls-remote` 走 `atomgit.com` 超时的根因未定位，若日后稳定复现需重新评估该域名在 git 协议下的可用性。
+
+## 补充：Gitee 对照（2026-10-15 同日追加）
+
+- 归属：Gitee（码云）是**开源中国 OSCHINA** 旗下平台，与 AtomGit（CSDN 系）是两家。
+- 实测网络：匿名 git smart-HTTP 打公开仓库 `https://gitee.com/oschina/git-osc.git/info/refs?service=git-upload-pack`
+  → **200 / 1.68 s**（同一时刻 AtomGit 两域名 0.3–0.5 s）。两家都**国内直连可用、不要挂代理**；Gitee 首包明显更慢。
+- **判存在性的行为不一样（重要）**：同一个不存在的仓库路径，AtomGit 回 **403 + "could not be found"**、网页回 **404**；

@@ -1,0 +1,132 @@
+---
+title: "把 Codex CLI 接到本地 OpenAI 兼容网关：六个独立死点，逐个踩过并验证"
+date: 2026-11-15
+domain: common
+category: "调试与验证"
+status: verified
+severity: high
+stack: ["OpenAI Codex CLI v0.155.1", "llama.cpp b10837", "牧羊人 Herdsman v0.6.7", "Python 标准库代理", "Windows 11"]
+tags: ["Codex", "Responses API", "wire_api", "SSE流式", "flush", "system消息顺序", "tools被吞", "config.toml", "本地大模型"]
+---
+
+# 问题：Codex 接本地模型，一路报五种不同错误，最后一种最难找
+
+> 六个死点各自独立——修掉前面的才会暴露后面的，所以必须全部满足才通。
+> 每条都有复现与验证，见对应小节和「验证记录」。
+
+## 一句话结论
+
+接本地 OpenAI 兼容网关给 Codex CLI 用，要同时过六道关：**协议选 responses、别用宿主网关（它吞 tools）、
+代理转发 SSE 必须逐块 flush、本地 provider 千万别加 `requires_openai_auth`、`env_key` 指的变量必须真的存在、
+模型模板要求 system 消息唯一且在首位**。全部满足后 `codex exec` 实测 `exit=0`。
+
+## 触发条件与影响
+
+- 项目或功能：把本地 llama.cpp 模型（牧羊人托管）接进 IDE 里的 Codex 编程插件
+- 环境与版本：Codex CLI v0.155.1 / llama.cpp b10837（PrismML fork）/ 牧羊人 v0.6.7 / Win11
+- 触发条件：按 OpenAI 官方惯例写 provider 配置
+- 影响范围：五种报错互相掩护，会反复误判成「密钥错了」「网络断了」「配置没生效」。
+  最终用户放弃该路线，改把模型当纯本地写作助手用——**所以本条主要是别重复踩**
+
+## 六个死点（按暴露顺序）
+
+### ① 新版 Codex 删了 `wire_api = "chat"`
+
+```
+Error loading config.toml: wire_api = "chat" is no longer supported.
+How to fix: set wire_api = "responses"   （codex discussions/7782）
+```
+只能走 Responses API。⇒ 上游必须有 `/v1/responses`。
+
+### ② 宿主网关有 `/v1/responses`，但会把 `tools` 吞掉
+
+同一时刻、同一 payload 的对照（这是最关键的一组数据）：
+
+```
+网关 8080/v1/responses + tools=[get_weather] → output 只有 [message]，无调用
+直连 1544 /v1/responses + tools=[get_weather] → [reasoning, function_call]
+                                               arguments={"city":"广州"}
+```
+
+**⇒ 别用宿主的网关。** 另外它的 `POST /v1/completions` 返回 HTTP 200 但 body 是空的，
+比 404 更阴——只看状态码的插件会以为成功。
+
+### ③ 代理转发 SSE 不逐块 flush ⇒ 客户端报「流断了」
+
+自己写的转发器把上游 SSE 读完再一次性吐，Python 侧「读完全文」数行数看不出来，
+Codex 侧直接失败：
+
+```
+stream disconnected before completion: error sending request for url (http://127.0.0.1:8081/v1/responses)
+```
+
+修复＝每个 chunk 写完就 `flush()`（chunked 编码写完 `0\r\n\r\n` 也要 flush）。验证只看**首块到达时间**：
+
+```
+修前：首块 6.50s，末块 10.50s（跨 4.0s，最后一秒内到达 78 行）＝攒完再吐
+修后：首块 0.29s，末块 3.26s                              ＝真增量
+```
+
+### ④ 本地 provider 加 `requires_openai_auth = true` 会把 key 送去 api.openai.com
+
+```
+warning: Falling back from WebSockets to HTTPS transport.
+ERROR: unexpected status 401 Unauthorized: Incorrect API key provided: sk-ptw-1****EzXi.
+       url: https://api.openai.com/v1/responses
+```
+
+这个标志是给 ChatGPT/OpenAI 官方认证用的，加上后 Codex 根本不看你的 `base_url`。
+**⇒ 本地/自建 provider 一律不要加。**（同时：这把 key 是被送到外部域名才被拒的，
+属于凭据外流，哪怕目标域名是官方的也不算无害。）
+
+### ⑤ `env_key` 读的是环境变量，不看 auth.json
+
+```
+ERROR: Missing environment variable: `OPENAI_API_KEY`.
+```
+`env_key = "X"` 时 Codex 只要**环境变量** X。两个办法：给本地 provider 用专属变量名
+（值随便，本地不校验）并 `setx` 到用户级——**注意设完必须重启宿主程序/IDE，子进程才看得到**；
+或者不写 `env_key`。
+
+⚠️ 顺带一个真实损失：CC GUI 那类客户端的「auth.json」输入框写的是**全局共享**的
+`~/.codex/auth.json`（只有一行 `OPENAI_API_KEY`，所有 provider 共用）。
+往里填占位值会**直接顶掉用户真 key**。本机靠应用自己的 `auth.json.cli_backup` 恢复
+（判据：真 key 44 字符、前缀 `sk-ptw-`；占位值只有 5 字符）。
+⇒ 本地 provider 用**独立变量名**，完全不碰 auth.json，就不会有这个问题。
+
+### ⑥ 真正的 500：模型模板要求 system 消息唯一且在首位
+
+llama.cpp 会把 Responses 请求里的 `instructions` 转成开头的 system 消息，
+而 Codex 的 `input[0]` 又是一条 `role="developer"`（同样转成 system）⇒ 两条 system，
+第二条不在首位 ⇒ 模板里的 `raise_exception` 抛异常：
+
+```
+HTTP 500  Jinja Exception: System message must be at the beginning
+```
+
+二分定位过程（回放抓到的真实请求逐段裁剪）：
+
+```
+原样                                → HTTP 500  System message must...
+删掉 developer 项                    → OK
+把 developer 合并进 instructions     → OK   ← 采用，内容不丢
+```
+
+⇒ 代理里做规范化：把 `input` 中所有 `developer`/`system` 项的文本折进 `instructions`
+再从 `input` 删除。日志验证 `merged_system: 3, status: 200, empty_answer: false`。
+
+### 附带一条：小 `max_output_tokens` 会让模型「答不出话」
+
+带隐藏思考的模型，输出预算太小时**正文长度为 0**，客户端就报
+`All connected models failed to generate a response`——和显存、网络都无关：
+
+```
+max_output_tokens=40  → items=[reasoning]          正文 0 字
+max_output_tokens=120 → items=[reasoning]          正文 0 字
+max_output_tokens=600 → items=[reasoning, message] 正文 439 字
+```
+⇒ 代理里把小于 4096 的预算抬到 4096（客户端不改也能通）。
+
+## 取证方法（这次真正救命的三条，与上面六道关同样可复用）
+
+1. **别猜客户端发了什么，把请求原样落盘再离线二分。** 在代理里 dump 每次 POST 的

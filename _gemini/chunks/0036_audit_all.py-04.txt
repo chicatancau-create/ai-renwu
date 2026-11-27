@@ -1,0 +1,89 @@
+for f_ in ["router.py", "ops.py", "wire_agents.py", "wire_headroom.py",
+           "ccswitch_policy.py", "seed_kompress.py", "SKILL.md"]:
+    p = os.path.join(ROUTER, f_)
+    rec("PASS" if os.path.isfile(p) else "FAIL", "file %s" % f_,
+        "%d B" % os.path.getsize(p) if os.path.isfile(p) else "MISSING")
+
+# stale absolute references to the pre-reorg G:\AIrenwu layout
+stale_refs = {}
+for f_ in os.listdir(ROUTER):
+    if not f_.endswith((".py", ".md")):
+        continue
+    p = os.path.join(ROUTER, f_)
+    try:
+        with open(p, encoding="utf-8", errors="replace") as fh:
+            txt = fh.read()
+    except OSError:
+        continue
+    hits = set(re.findall(r"G:\\AIrenwu\\(?:_scan|_backup)[\\\w\-.]*", txt))
+    dead = sorted(h for h in hits if not os.path.exists(h))
+    if dead:
+        stale_refs[f_] = dead
+rec("PASS" if not stale_refs else "WARN", "no stale G:\\AIrenwu\\_scan|_backup refs",
+    "clean" if not stale_refs else json.dumps(stale_refs, ensure_ascii=False)[:400])
+
+print()
+print("=" * 100)
+print("G. cc-switch policy DB")
+print("=" * 100)
+db = os.path.join(HOME, ".cc-switch", "cc-switch.db")
+tmp = os.path.join(os.environ.get("TEMP", r"C:\Windows\Temp"), "audit_cc.db")
+try:
+    shutil.copy2(db, tmp)
+    con = sqlite3.connect(tmp)
+    cur = con.cursor()
+    cur.execute("PRAGMA table_info(skills)")
+    cols = [r[1] for r in cur.fetchall()]
+    en = [c for c in cols if c.startswith("enabled_")]
+    cur.execute("SELECT id, %s FROM skills" % ", ".join(en))
+    rows = cur.fetchall()
+    on_all, off_all, mixed = [], [], []
+    for r in rows:
+        vals = r[1:]
+        if all(vals):
+            on_all.append(r[0])
+        elif not any(vals):
+            off_all.append(r[0])
+        else:
+            mixed.append((r[0], sum(vals)))
+    con.close()
+    good = set(on_all) == {"local:headroom", "local:skill-router"} and not mixed
+    rec("PASS" if good else "FAIL", "cc-switch: only 2 skills enabled",
+        "%d switch cols; ON=%s; OFF=%d; MIXED=%s" % (len(en), on_all, len(off_all), mixed))
+except Exception as e:
+    rec("FAIL", "cc-switch DB read", "%s: %s" % (type(e).__name__, e))
+
+print()
+print("=" * 100)
+print("H. autostart + Kompress model cache + models.json")
+print("=" * 100)
+vbs = os.path.join(HOME, "AppData", "Roaming", "Microsoft", "Windows",
+                   "Start Menu", "Programs", "Startup", "headroom-autostart.vbs")
+rec("PASS" if os.path.isfile(vbs) else "FAIL", "Startup autostart entry",
+    "%d B" % os.path.getsize(vbs) if os.path.isfile(vbs) else "MISSING")
+ens = os.path.join(HOME, ".headroom", "deploy", "default", "ensure-headroom.ps1")
+rec("PASS" if os.path.isfile(ens) else "FAIL", "ensure-headroom.ps1 exists", str(os.path.isfile(ens)))
+try:
+    out = subprocess.run(["schtasks", "/query", "/tn", "headroom-default-health", "/fo", "LIST"],
+                         capture_output=True, text=True, timeout=30)
+    txt = (out.stdout or "") + (out.stderr or "")
+    ok = out.returncode == 0 and "headroom-default-health" in txt
+    rec("PASS" if ok else "WARN", "health scheduled task registered",
+        "found" if ok else txt.strip().replace("\n", " ")[:160])
+except Exception as e:
+    rec("WARN", "health scheduled task query", "%s" % e)
+
+onnx = os.path.join(HFHUB, "models--chopratejas--kompress-v2-base", "snapshots",
+                    "b1563631b35bfdcee37587ad530147497d820d4c", "onnx", "kompress-int8-wo.onnx")
+if os.path.isfile(onnx):
+    sz = os.path.getsize(onnx)
+    rec("PASS" if sz > 250_000_000 else "FAIL", "Kompress ONNX cached", "%.1f MB" % (sz / 1e6))
+else:
+    rec("FAIL", "Kompress ONNX cached", onnx + " MISSING (ML compressor would silently degrade)")
+tokdir = os.path.join(HFHUB, "models--answerdotai--ModernBERT-base", "snapshots",
+                      "8949b909ec900327062f0ebf497f51aef5e6f0c8")
+rec("PASS" if os.path.isdir(tokdir) else "FAIL", "ModernBERT tokenizer cached", str(os.path.isdir(tokdir)))
+
+mj = os.path.join(HOME, ".headroom", "models.json")
+if os.path.isfile(mj):
+    try:

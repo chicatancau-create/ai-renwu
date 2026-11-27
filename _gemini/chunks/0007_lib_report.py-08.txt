@@ -1,0 +1,69 @@
+        A("…（其余 %d 个略）" % (len(colo["files"]) - colo_cap))
+    A("```")
+    A("")
+    A("解读（扫描员）：每个实验单元 = README.md（笔记/边界）+ src/ + tests/ + scripts/ + evidence/（+ scenarios/ 故障场景笔记），**笔记、代码、证据同目录**，粒度是「实验」而非「知识点」。注意 build/ 下 .exe 为 .gitignore 排除的本地构建产物（源码与 evidence 入库，二进制不入库）。01-阶段课程/教学单元 U01–U09 同构（各带 evidence/manifest.json，代码 %d 个）。" % D["dir_code"].get("01-阶段课程" + SEP + "教学单元", 0))
+    A("")
+    A("### 8.2 07-项目实现：代码已外迁，本仓纯索引（分离）")
+    A("")
+    A("实测：07-项目实现 下**无任何子目录**，仅 1 个 README.md（全文如下）。P02/P03/P04 源码在 `E:\\fullstack-code`（存在性已实测；内部布局未确认——07 README 与交接文档用 `projects/` 前缀，而 scripts/verify_archive.sh 用无前缀的 `project02-collab` 等，两处口径不一致，哪个是当前真实布局**未确认**）。项目需求/验收文档在 02-项目实战（7 篇 md、0 代码）。")
+    A("")
+    p07 = D["p07_readme"]
+    p07_n = len(p07.splitlines()) if p07 else 0
+    if p07_lines is None or p07_n <= p07_lines:
+        A("`%s` 全文（%d 行）：" % (ap("07-项目实现/README.md"), p07_n))
+        A("")
+        A(fence(emb(p07), "markdown"))
+    else:
+        A("`%s`（共 %d 行；体积纪律收录前 %d 行，其余截断，全文见该路径）：" % (
+            ap("07-项目实现/README.md"), p07_n, p07_lines))
+        A("")
+        A(fence(emb(rehead(p07, p07_lines)), "markdown"))
+    A("")
+    A("### 8.3 对 Gemini Colocation 建议的差距判断（扫描员）")
+    A("")
+    A("- 06/01 已是「单元级同地」，缺的是：知识点级 frontmatter（id/domain/stack/…）、跨单元 related_ids 链接、全局索引。")
+    A("- 02（需求）与外部仓（实现）是**跨仓分离**，靠 07 README 的路径表 + sandbox_path 类字段才可能机器可读；当前路径表是给人看的 markdown，且存在 projects/ 前缀口径分歧。")
+    A("- 05 外部镜像 13GB 且不入 Git：索引方案必须把它排除或单独分层，否则 manifest 生成与 CodeWeave 拉取都会被拖垮。")
+    A("")
+
+    # ================= 9 gitignore =================
+    A("## 9. .gitignore 全文与排除分析")
+    A("")
+    A("`%s`（%s 字节，全文）：" % (ap(".gitignore"), format(len(D["gitignore"].encode("utf-8")) if D["gitignore"] else 0, ",")))
+    A("")
+    A(fence(emb(D["gitignore"]), "gitignore"))
+    A("")
+    A("排除分析（扫描员，对照实测工作区）：")
+    A("")
+    A("- **05-外部资料库/题库/ 与 知识库/ 整体不入 Git**（注释：体积大，用 05-外部资料库/材料清单.md 复现）。即工作区 13GB 镜像的绝大部分是**未跟踪本地文件**；Git 仓库本体远小于工作区（跟踪文件统计见第 1 节）。05 入 Git 的仅 %s 个治理文件（git ls-files 实测：README/catalog.json/catalog.schema.json/tools/catalog_tool.py/材料清单.md 等）。材料清单.md 实测存在：%s；catalog.json（总览宣称的资源事实源）实测存在：%s。复现能力未验证。" % (
+        (ts["n05"] if ts else "未确认"),
+        "是" if exists("05-外部资料库/材料清单.md") else "否", "是" if exists("05-外部资料库/catalog.json") else "否"))
+    A("- `_采集暂存/*` 全部忽略（采集脚本/账本只留本机；工作区可见 %d 个代码文件）。" % D["dir_code"].get("05-外部资料库" + SEP + "_采集暂存", 0))
+    A("- `.workbuddy/` 忽略（AI 会话记忆含本机路径，不版本化；git 跟踪数 %s，实测）。" % (ts["wb"] if ts else "未确认"))
+    A("- `06-实验代码/**/build/`、`**/node_modules/`、`**/dist/`、`**/*.tsbuildinfo` 忽略：**源码与证据入库，二进制/依赖/构建产物不入库**。E01 的 7 个 .exe、E03/E05 的 dist/ 都是本地产物。")
+    A("- `.obsidian/workspace*`、`.obsidian/cache` 忽略（但 .obsidian 目录实测不存在——该库当前可能并未用 Obsidian 打开，或配置在别处；未确认）。")
+    A("- 杂项：Thumbs.db、.DS_Store、*.tmp、改名-*.ps1、__pycache__/。")
+    A("- **对索引方案的含义**：build-index 若扫描工作区会把 13GB 未跟踪镜像算进去；若只扫 Git 跟踪文件（git ls-files）则天然排除 05 主体，两种口径差异巨大，必须先定口径。")
+    A("")
+
+    # ================= 附录 A 交接 =================
+    A("## 附录 A. 交接文档（lead 指定收录）")
+    A("")
+    if D["handover"]:
+        hp = D["handover"]["path"]
+        full = S.read_text(os.path.join(ROOT, hp))
+        nlines = len(full.splitlines()) if full else 0
+        A("`%s`（共 %d 行；收录前 %d 行%s）。文档自述为 **2026-11-08 历史快照，不再逐日维护**，其中 HEAD/manifest 数量/CI run 编号是时点值，不可当现状引用；当前口径以 09-整合任务/MS11-状态矩阵 为准（文档自述）。" % (
+            ap(hp), nlines, hand_lines, "，即全文" if nlines <= hand_lines else "，已截断"))
+        A("")
+        A(fence(emb(rehead(D["handover"]["head"], hand_lines)), "markdown"))
+    else:
+        A("未找到该文件（实测不存在）。")
+    A("")
+
+    # ================= 附录 B 未确认 =================
+    A("## 附录 B. 未确认清单与口径差异（诚实边界）")
+    A("")
+    A("1. `E:\\fullstack-code` 内部结构、8 份外部 manifest、P02/P03/P04 源码与测试数字：仅存在性实测，内容**未确认**（任务边界：只负责资料库侧）。")
+    A("2. 外部仓项目路径口径：07 README/交接文档用 `projects/project02-collab`，`scripts/verify_archive.sh` 用根级 `project02-collab`——两者不一致，当前真实布局**未确认**。")
+    A("3. CI run 历史与计费阻断状态：来自 README/交接文档宣称（原文已嵌入），未查询 GitHub API，**未确认**。")

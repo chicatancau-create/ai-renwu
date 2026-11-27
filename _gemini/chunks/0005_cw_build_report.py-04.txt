@@ -1,0 +1,55 @@
+    add("## 5. 核心配置（全文，低优先级项截断）\n")
+    add("**Workspace 结构说明：不是 monorepo。** 根目录无 package.json；`应用端/项目/pnpm-workspace.yaml` 仅一行注释、无 packages 声明；三端各自独立管理依赖，网页服务是网页端内的嵌套包（server/package.json，零依赖）。\n")
+    add("### 5.1 package.json（三端）\n")
+    add(embed("应用端\\项目\\package.json"))
+    add(embed("网页端\\项目\\package.json"))
+    add(embed("网页端\\项目\\server\\package.json"))
+    add(embed("应用端\\项目\\pnpm-workspace.yaml"))
+    add("### 5.2 构建配置\n")
+    if L["vite"] == "full":
+        add(embed("网页端\\项目\\vite.config.ts"))
+    else:
+        add("#### G:\\CodeWeave\\网页端\\项目\\vite.config.ts（关键行节选，带原行号 / 共 %d 行，%d 字节；完整原文未内联——预算取舍）\n\n````ts\n%s\n````\n" % (len(lines_of("网页端\\项目\\vite.config.ts")), sz("网页端\\项目\\vite.config.ts"), vite_excerpt()))
+    if L["nativecmake"]:
+        add(embed("应用端\\项目\\native\\CMakeLists.txt", 1, L["nativecmake"]))
+        add("（后续未内联部分：codeweave-core 源文件清单、codeweave-native WIN32 可执行目标 :23、/utf-8 编译选项 :20,30、CTest 四个测试 native-core/native-content-delivery/native-startup --self-test/gui-smoke :50–61、ui-qt 子目录 :87–89。）")
+    else:
+        add(embed("应用端\\项目\\native\\CMakeLists.txt"))
+    add(embed("应用端\\项目\\native\\ui-qt\\CMakeLists.txt", 1, L["uiqt"]))
+    add(embed("移动端\\项目\\build.gradle.kts"))
+    if L["settingsgradle"]:
+        add(embed("移动端\\项目\\settings.gradle.kts"))
+    else:
+        add("settings.gradle.kts（4 行，未内联）：rootProject.name=\"codeweave-mobile\"；include(\":mobile-app\")（mobile-core 不在 Gradle 内，独立 CMake）。")
+    if L["gradleprops"]:
+        add(embed("移动端\\项目\\gradle.properties"))
+    else:
+        add("gradle.properties（3 行，未内联）：org.gradle.jvmargs=-Xmx2g -Dfile.encoding=UTF-8；android.useAndroidX=true。")
+    add(embed("移动端\\项目\\mobile-app\\build.gradle.kts"))
+    add(embed("移动端\\项目\\mobile-core\\CMakeLists.txt"))
+    add("### 5.3 tsconfig（网页端）\n")
+    add(embed("网页端\\项目\\tsconfig.json"))
+    add(embed("网页端\\项目\\tsconfig.app.json"))
+    if L["tsconfignode"]:
+        add(embed("网页端\\项目\\tsconfig.node.json"))
+    else:
+        add("tsconfig.node.json（16 行，未内联）：ES2023、allowImportingTsExtensions、verbatimModuleSyntax、noEmit，include 仅 vite.config.ts。")
+    add("### 5.4 运行时配置与环境\n")
+    add(embed("应用端\\项目\\config\\codeweave.config.example.json"))
+    add(embed("网页端\\项目\\server\\config\\codeweave.config.example.json"))
+    add(embed("网页端\\项目\\.env.local", note="唯一 env 文件；值为本机开发 API origin（localhost），非凭据，无需脱敏。仓库内未发现 .env.example"))
+    add(embed("网页端\\项目\\.nvmrc"))
+    add("### 5.5 仓库级忽略与属性\n")
+    add(embed(".gitattributes"))
+    if L["gitignore"] == "full":
+        add(embed(".gitignore"))
+    else:
+        add("#### G:\\CodeWeave\\.gitignore（关键行节选，带原行号 / 共 %d 行）\n\n````text\n%s\n````\n" % (len(lines_of(".gitignore")), gitignore_excerpt(L["gimax"])))
+    add("另有 `网页端/项目/vitest.config.ts`、`网页端/项目/eslint.config.js`（测试/Lint 配置，低优先级，未内联，存在性见 §2 目录树）。\n")
+
+    # ===== 6 技术栈 =====
+    add("## 6. 技术栈判断（每端，附证据行）\n")
+    add("| 端 | 框架/语言 | 构建/工具链 | 证据（文件:行） |")
+    add("|---|---|---|---|")
+    add("| 网页端 | React 19.2.8 + TypeScript 5.9.3（TSX）；后端为零依赖纯 Node HTTP 服务（node:http） | Vite 8.2.1（Rolldown 内核，见 vite.config.ts:23 注释）+ tsc -b；Vitest ^4.1.11；ESLint ^10.8.1；Node ^22.13.0\\|\\|>=24（.nvmrc=24） | %s；%s；%s；%s；G:\\CodeWeave\\网页端\\项目\\server\\service\\server.mjs:1；%s |" % (EV["react"], EV["vite"], EV["ts"], EV["vitest"], EV["entry"]))
+    add("| 应用端 | C++23 业务核心 + Win32 原生壳（main.cpp，1378 行）；可选 Qt 6.8.3 Quick/QML 壳（CodeWeaveQtShell，CMake 选项 QEWEAVE_BUILD_UI_QT） | CMake ≥3.25 + MSVC（静态运行时）；Node ≥24 仅用于构建期工具（内容导出/打包/测试），产品运行不依赖 Node/网页服务 | %s；G:\\CodeWeave\\应用端\\项目\\native\\ui-qt\\CMakeLists.txt:3（find_package(Qt6 6.8.3 REQUIRED COMPONENTS Quick Qml QuickControls2)）；%s；G:\\CodeWeave\\应用端\\项目\\native\\CMakeLists.txt:4 |" % (EV["cxx23"], EV["appdesc"]))

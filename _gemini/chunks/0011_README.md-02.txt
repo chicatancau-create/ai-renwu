@@ -1,0 +1,23 @@
+- [[踩坑-无BOM的UTF8脚本被按GBK解码致中文路径报成文档已损坏]]（verified，2026-11-15）— `cat >` 写出的 `.ps1` 没有 BOM，PowerShell 5.1 就按 ANSI(GBK) 解码脚本，中文路径在到达 Word 前已成乱码，Word 回「此文档可能已损坏」把人往文件损坏/盘符权限带。7 格 A/B 证明 H 盘（实测 `DriveType=3` 本地盘）、`【】` 文件名、`Open(3arg)` 三个候选全部无罪；同一份正文加 BOM 立刻 `OK pages=1`。含一条决定性旁证：无 BOM 脚本 `Copy-Item` 出的文件名本身就是 `銆愮ず渚嬨€?` mojibake，源与目的被同样改写所以「自洽成功」——这解释了为什么同类脚本有时能跑通
+- [[踩坑-中文注册表值触发PS兜底且param不绑定致插件查不完]]（verified，2026-10-12）— 只在中文 Windows 复现的第三方插件 bug；判"环境相关"先看非 ASCII 是否切换了代码路径
+- [[踩坑-第三方Claude客户端自带服务商配置切全局路由无效]]（verified，2026-10-10）— 判线路只看最小补全请求，判归属只看进程外网连接
+- [[规则-Windows新窗口默认居中只能常驻监视器]]（verified，2026-10-11）— 无系统设置、FancyZones 也做不到；DPI/可见框/cloaked/动画/priming/pythonw 六个坑
+- [[踩坑-虚拟网卡空metric抢走默认路由致域名假超时]]（verified，2026-10-11）— 直连超时≠DNS污染；先看 Find-NetRoute 出口网卡，别禁用当上联的 RNDIS 卡
+- [[踩坑-Bash内联传参吞PowerShell变量与反斜杠]]（verified，2026-10-12 / 2026-11-15 追加）— 命令里有 `$` 或反斜杠就先落成 .ps1/.py 再跑；报错冒出无关词（如 extglob）＝shell 改写过，不是被测程序的锅。**11-15 追加的高危下游后果**：反斜杠被压成单个后，Python 会把 `\202`/`\01`/`\02` 当**八进制转义**、`\n` 当换行，于是**静默写出不可见控制字符或把一行劈成两半**——文件能正常 UTF-8 解码、Read 显示一切正常，只有 `repr()` 或按码点正则才现形；且**修复用的正确字符串同样会被吃**（我第一次修就是把损坏写回去、还多加了 U+0001）。改文件三规矩：备份 → 匹配数断言 → 写盘后按码点复检，齐了才落盘
+- [[踩坑-AI面板连接失败耗时1ms是没填密钥而非网络]]（verified，2026-10-12）— 失败耗时个位数毫秒＝请求根本没发；判 API 域名可达性用不带凭据打同端点，拿到 403 JSON 即链路通
+- [[规则-默认路由抢占网卡已换为RadminVPN]]（verified，2026-10-13；2026-11-13 复核更正）— 接力记录：当时判 Radmin VPN（metric=1）抢路由，但原判据不足（只看路由表序、未用 Find-NetRoute 实证）；2026-11-13 实测出口=WLAN、Radmin 有效 metric 9257 不占优，原结论降级「未证实」。判出口看有效 metric=RouteMetric+InterfaceMetric 并用 Find-NetRoute 实证；结论会过期，每次现查
+- [[踩坑-脚本驱动MSVC时vcvars传参与qt-cmake不透传build]]（verified，2026-10-14）— `vcvars64 failed rc=1` 且 stderr 空＝调用形式的锅：单个命令字符串＋不加任何重定向＋正则筛 `set`；`qt-cmake.bat` 只能 configure，`--build` 要回到真 cmake
+- [[踩坑-Win11托盘图标在独立溢出窗口且取证须先设DPI-aware]]（verified，2026-10-14）— 托盘项判据只认 UIA 的 Name 且必须遍历顶层窗口（含 `TopLevelWindowForOverflowXamlIsland`）；桌面几何取证第一步是 `SetProcessDPIAware()`，否则量到的是缩放位图
+
+
+- [[踩坑-同一函数既当不放大守卫又当按框缩放致该缩的不缩]]（verified，2026-10-19）— `min(f, 1.0)` 塞进缩放函数后，"框比原图大"就整体原样返回，**该缩的窗口白不缩**；把"不放大"归调用方判定，缩放函数只按框算
+- [[踩坑-缩放结果二次取整不收敛致反复SetWindowPos]]（verified，2026-10-19）— 宽高各自 `round()` 会让"再算一次"差 1px，轮询型程序因此反复调整；改成"定主轴 + 反算另一边"，并自测 `f(f(x)) == f(x)`
+- [[踩坑-执行环境Start-Process子进程在工具会话结束时被连带回收]]（verified，2026-11-01）— 程序「启动时活着、跨会话消失、日志无崩溃」三连＝作业对象连带回收，不是程序 bug；要驻留就用 `explorer.exe` 拉起或计划任务，别先改程序配置
+- [[规则-Electron的app.asar可直接按头解析取文件无需asarCLI]]（verified，2026-11-01）— 查不到插件配置 schema 时先去 asar 里找它自带的 README/源码：16 字节头 + JSON 目录 + offset 定位，Python 几十行搞定，比翻文档快且不会过期
+- [[踩坑-xlsx字符串以等号开头致Excel打不开簿]]（verified，2026-10-19）— `=== C: ...` 这类标题会被 Excel 当公式，**整本簿 `Workbooks.Open` 抛 `0x800A03EC`**；先查内容再怀疑文件/环境，用逐行拆分二分定位
+- [[踩坑-API密钥报无效实为请求形态不对-OpenAI兼容网关]]（verified，2026-11-01）— **401 才是密钥问题，400 是请求形态问题**；定制网关常强制 `stream:true` + 首条必须 `system` 角色。密钥可本地复用验证：只打印状态码与指纹，不把密钥送进上下文
+- [[规则-自建provider开推理档位要同时写reasoningEfforts与supportsReasoningEffort]]（verified，2026-11-01）— 档位"能选"和"真发出去"是两件事；`off` 必须加引号（YAML 1.1 会变布尔）；截图取证前先 `SetProcessDpiAwareness(2)`，否则坐标错位截到别的窗口
+- [[规则-CCSwitch接OpenAI兼容网关要四件套配置]]（verified，2026-11-01）— `apiFormat` / `isFullUrl` / `in_failover_queue` / `supportsThinking` 四件套缺一不可；`[MODE] 路由 X` 只代表字段改了，真实上游看 `>>> 请求目标:` 那行；验"参数有没有被吞"用"让上游对非法值报错"最可靠
+- [[踩坑-Python调tasklist加text等于True会UnicodeDecodeError]]（verified，2026-11-01）— 中文 Windows 上 `tasklist`/`taskkill` 输出是 GBK，`text=True` 会在读线程里炸；异常不中断主流程，进程检查会静默失效，必须手动 `decode("gbk","replace")`
+- [[踩坑-Gitee仓库401分不清缺凭据还是缺权限且fill探测会回显密钥]]（verified，2026-11-02）— Gitee 把「私有/不存在」渲染成同一句「用户名或密码错误」；判死活改用**属主 /projects 公开列表 + 匿名 ls-remote**，判凭据只读 `cmdkey /list`，**别拿 `git credential fill` 探测**（会弹窗且把密钥打进 stdout）；同日补证 **`git push --dry-run` 也不是无副作用**（认证失败会 `credential reject` 删掉凭据，且多 pushurl 撞第一个失败就中止）
+- [[踩坑-ls-tree名字输出八进制转义致中文路径比对全错]]（verified，2026-11-02）— `git ls-tree --name-only` 会把中文路径转成八进制转义串，与文件系统路径交集恒为 0；取证脚本一律 `-z` + bytes，且比哈希前先归一化 CRLF，否则「全部不匹配」的假结论会带偏判断

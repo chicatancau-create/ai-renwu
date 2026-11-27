@@ -1,0 +1,103 @@
+﻿---
+title: "App 自更新后手动重装其服务：装进去的是旧二进制，且卸载器会连带删掉服务托管的内核，症状是静默降级 Sidecar"
+date: 2026-11-04
+domain: common
+category: 调试与验证
+status: verified
+severity: high
+stack: [Windows, Clash Verge Rev, 服务化桌面应用]
+tags: [服务模式, sidecar降级, 自更新, 内核核准, 父进程归属]
+---
+
+# 问题：桌面 App 带「服务 + 内核」结构时，手动重装服务会被它自己的自更新打回不兼容
+
+> 本条是 [[踩坑-无权限读ProgramData被当成文件不存在致误删服务拆掉内核]] 的后续：那轮误判引发了一次重装，
+> 这次记的是**那次重装留下的后遗症**。
+
+## 一句话结论
+
+带「服务 + 由服务托管的内核」结构的桌面软件，**只要它在中间自更新过一次，你手动重装的服务就是旧版**；
+而它的卸载器还会把服务 `cores\` 里的内核一起删掉 —— 两处坏掉都不会让代理端口消失，
+只会让应用**静默降级成自己 fork 一个子进程顶替**，所以「端口在听」绝不能当「服务模式正常」的证据。
+
+## 触发条件与影响
+
+- 软件：Clash Verge Rev（Tauri），内核 `verge-mihomo`，服务 `clash_verge_service`（内核正常时跑在服务里）
+- 环境与版本：Windows 11 28000；App 11-03 17:57 自更新 2.4.x → **2.5.10**；
+  17:00（更新前 57 分钟）我按 App 当时的 `resources\clash-verge-service-install.exe` 重装过服务
+- 触发条件：①服务二进制版本 ≠ App 自带那份；②服务 `cores\` 里没有 App 选定的内核
+- 影响范围：横幅「服务无法启动内核，已降级为 Sidecar 模式运行，服务仍不可用。」
+  —— 代理仍可用（7897 在听），但失去服务级能力（TUN、开机无 UI 起内核等），且每次重启都刷这条横幅
+
+## 复现步骤
+
+1. 前置条件：一个「服务托管内核」型软件正在跑，GUI 与内核父进程关系正常
+2. 操作：用**当前版本** App 自带的 install/uninstall 重装服务 → 之后让 App 自更新到新版本 → 重启 GUI
+3. 预期：新版本 App 认领新服务，内核仍由服务托管
+4. 实际：App 判定服务不兼容并退回 Sidecar；日志分别给出两种文案 ——
+   - 服务二进制对不上：`registered service is unavailable or incompatible`
+   - 内核缺失/不匹配：`the selected approved core is missing or does not match; reinstall the service to repair it`
+
+## 证据
+
+同一台机、同一轮取证（全部为本轮实测）：
+
+| 对象 | 大小 | 时间 | 说明 |
+|---|---|---|---|
+| `D:\Clash Verge\clash-verge.exe` | — | 11-03 17:57 | FileVersion **2.5.10** |
+| `D:\Clash Verge\resources\clash-verge-service.exe` | **3,418,624** | 11-01 00:08 | 新版 App 自带 |
+| `C:\ProgramData\clash-verge-service\bin\clash-verge-service.exe` | **3,379,200** | 11-03 17:00 | 我装进去的旧版 ⇒ 尺寸即证据 |
+| `C:\ProgramData\clash-verge-service\cores\verge-mihomo.exe` | 61,271,040 | 10-22 | **10:37 探针里还在，10:59 探针里 MISSING** ——被 10:55 那次 uninstall 删掉 |
+
+- 服务侧日志正常到让人误判：`Acquired service owner lock` / `IPC server started` /
+  `GET /magic 200` `GET /version 200` `POST /installation 200` 全绿，**但内核就是不起**，
+  并留下一句关键线索：`Desired state does not require core restore`
+- `users\<hash>\desired-state.json` 停留在 `"core_should_be_running": false`（mtime 还是重装那一刻）
+- 归属判据：Sidecar 时 `verge-mihomo` 的父进程 = `clash-verge.exe`；修好后父进程 = 服务 PID
+
+## 根因分析
+
+- 已确认根因：**两处版本/内容错配**，都由「重装」与「自更新」交叉造成
+  1. 我 17:00 装的服务是旧 App 的产物，17:57 的自更新只换 App 不换已注册服务 ⇒ 新 App 认不出旧服务；
+  2. `clash-verge-service-uninstall.exe` 会清掉服务目录里的 `cores\*.exe`，而 **App 不会自动把内核补回去**
+     （它只做校验，缺了就判定不可用并降级），于是错误从「服务不兼容」变成「内核缺失」。
+- 排除过的假设：①「服务没装/没跑」—— 服务 Running/Auto 且 IPC 全 200，否；
+  ②「属主令牌坏了」——`active-owner.json`/`owner-generation.json` 的 SID 与 owner_key 都对得上，否；
+  ③「只要重装服务就够了」——重装后仍报第二条错，说明 `cores\` 缺失是独立的第二个病。
+- 问题归属：**本次修改引入**（两次都是我重装造成的，不是软件原生故障）
+
+## 最小修复
+
+顺序不能反，且**两步都要**：
+
+```powershell
+# 提权。1) 用「当前版本 App 自带」的安装器重装服务，让二进制对齐
+sc.exe stop clash_verge_service
+& 'D:\Clash Verge\resources\clash-verge-service-uninstall.exe'   # 注意它会删 cores
+& 'D:\Clash Verge\resources\clash-verge-service-install.exe'
+
+# 2) 把 App 自带内核放回服务内核目录（服务不会自己补，App 也不会）
+Copy-Item 'D:\Clash Verge\verge-mihomo.exe' `
+          'C:\ProgramData\clash-verge-service\cores\verge-mihomo.exe' -Force
+
+# 3) 用软件平时的启动方式重启 GUI，让它重新评估服务（老进程不会自己重估）
+schtasks /Run /TN 'Clash Verge (Admin)'
+```
+
+核验（每条都要求实测值，不接受「应该好了」）：
+
+- `Get-FileHash` 两个服务二进制 **SHA256 相等**
+- `verge-mihomo` 的 `ParentProcessId` == 服务的 `ProcessId`
+- `desired-state.json` 变为 `"core_should_be_running": true` 且 mtime 是刚刚
+- App 日志**不再新增** `Starting Sidecar with Service unavailable`（旧告警残留属正常，看 mtime）
+- 端口 + 出境双测：`curl -x http://127.0.0.1:7897 https://github.com` 与直连各一次
+
+实测结果：修复后 `github_via7897=200 t=1.30s`、`google_via7897=204`、`baidu_direct=200`、
+`git ls-remote` 通、`ProxyEnable=1`；中断约 45 秒（11:00:52 结束 GUI → 11:01:06 内核由服务拉起）。
+
+## 验证记录
+
+- [x] 端到端：内核归属、期望状态、服务轮询、App 日志、代理与直连出网 —— 全部本轮实测通过
+- [x] 哈希：修复后服务二进制与 App 自带份一致（`56D68AFD…9AB3`）；内核复制目标与源一致（`0B4C7353…4D3DA`）
+- [x] 界面横幅：屏幕 BitBlt 抓 Verge 窗口目视确认 —— 无降级横幅，系统代理已启用、活跃连接 20（WebView2 窗口 PrintWindow 会全黑，只能屏幕截图）
+- [x] alpha 补回：尺寸 / mtime / SHA256 / `icacls` 四项与母本及同目录对齐；`cores\` 现有两份内核
